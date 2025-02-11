@@ -4,7 +4,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 
 class User(AbstractUser):
-    username = models.CharField(null=True, max_length=10)
+    name = models.CharField(null=True, max_length=10)
     email = models.EmailField(null=True)
     first_name, last_name = None, None
 

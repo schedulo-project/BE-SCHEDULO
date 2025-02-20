@@ -124,3 +124,30 @@ class PasswordFindEmailView(APIView):
         return Response(
             {"message": "잘못된 요청입니다."}, status=status.HTTP_400_BAD_REQUEST
         )
+
+
+# 로그인
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def jwt_login_view(request):
+    email = request.data.get("email")
+    password = request.data.get("password")
+    if not User.objects.filter(email=email).exists():
+        return Response(
+            {"message": "존재하지 않는 계정입니다."}, status=status.HTTP_400_BAD_REQUEST
+        )
+    user = User.objects.get(email=email)
+    if not check_password(password, user.password):
+        return Response(
+            {"message": "비밀번호가 옳지 않습니다."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+    token = RefreshToken.for_user(user)
+    serializer = UserSerializer(user)
+    return Response(
+        status=status.HTTP_200_OK,
+        data={
+            "token": str(token.access_token),
+            "user": serializer.data,
+        },
+    )

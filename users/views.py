@@ -11,3 +11,16 @@ from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.crypto import get_random_string
 from django.core.mail import EmailMessage
+
+
+# User 관련 view
+
+
+# 조회, 탈퇴
+class UserDetailView(generics.RetrieveDestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+    def get_object(self):
+        return self.request.user

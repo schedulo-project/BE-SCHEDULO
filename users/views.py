@@ -57,3 +57,70 @@ def check_duplicate(request):
     )
 
 
+# 비밀번호 찾기
+class PasswordFindEmailView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if "email" in request.data:
+            email = request.data.get("email")
+            if not email:
+                return Response(
+                    {"message": "이메일을 입력해주세요."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            elif not User.objects.filter(email=email).exists():
+                return Response(
+                    {"message": "존재하지 않는 이메일입니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            verification_code = get_random_string(length=8, allowed_chars="1234567890")
+            message = f"인증번호는 {verification_code}입니다."
+            email_message = EmailMessage(
+                subject="비밀번호 찾기 인증번호", body=message, to=[email]
+            )
+            email_message.send()
+            # 인증번호를 세션에 저장
+            request.session["email"] = email
+            request.session["verification_code"] = verification_code
+            request.session.set_expiry(180)  # 인증번호 유효시간 3분
+            return Response(
+                {
+                    "message": "비밀번호 변경 인증번호 전송",
+                    "verification_code": verification_code,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        elif "verification_code" in request.data:
+            verification_code = request.data.get("verification_code")
+            if verification_code != request.session.get("verification_code"):
+                request.session.flush()
+                return Response(
+                    {"message": "인증번호가 옳지 않습니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            request.session["verified"] = True
+            return Response(
+                {"message": "인증번호가 확인되었습니다."}, status=status.HTTP_200_OK
+            )
+
+        elif "password" in request.data:
+            if request.session.get("verified"):
+                email = request.session.get("email")
+                user = User.objects.get(email=email)
+                user.set_password(request.data.get("password"))
+                user.save()
+                request.session.flush()
+                return Response(
+                    {"message": "비밀번호가 변경되었습니다."}, status=status.HTTP_200_OK
+                )
+            else:
+                return Response(
+                    {"message": "인증번호가 확인되지 않았습니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        return Response(
+            {"message": "잘못된 요청입니다."}, status=status.HTTP_400_BAD_REQUEST
+        )

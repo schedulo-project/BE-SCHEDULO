@@ -14,7 +14,7 @@ class Schedule(models.Model):
     is_completed = models.BooleanField(null=False, default=False)
     order_num = models.IntegerField(null=True)
     user = models.ForeignKey(User, null=True, on_delete=models.CASCADE, related_name="schedule")
-    tag = models.ManyToManyField(Tag, null=True, on_delete=models.CASCADE, related_name="tag")
+    tag = models.ManyToManyField(Tag, related_name="tag")
 
 class TimeTable(models.Model):
     subject = models.CharField(null=True, max_length=30)

@@ -24,3 +24,12 @@ class UserDetailView(generics.RetrieveDestroyAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+# 회원가입
+class UserCreateView(generics.CreateAPIView):
+    permission_classes = [AllowAny]
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+

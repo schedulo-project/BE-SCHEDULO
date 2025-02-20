@@ -151,3 +151,25 @@ def jwt_login_view(request):
             "user": serializer.data,
         },
     )
+
+
+# StudyRoutine 관련 view
+# 1. 공부 계획 등록
+# 2. 공부 계획 수정
+class StudyRoutineView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if StudyRoutine.objects.filter(user=request.user).exists():
+            study_routine = StudyRoutine.objects.get(user=request.user)
+            serializer = StudyRoutineSerializer(
+                study_routine, data=request.data, partial=True
+            )
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer = StudyRoutineSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)

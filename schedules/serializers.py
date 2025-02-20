@@ -7,9 +7,13 @@ class TagSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 class ScheduleSerializer(serializers.ModelSerializer):
+    tag = TagSerializer(required=False, many=True)
+    
     class Meta:
         model = Schedule
         fields = "__all__"
+        extra_kwargs = {'content': {'required': False}, 'deadline': {'required': False}, 
+                        'order_num': {'required': False}, 'is_completed': {'required': False}}
 
 class TimeTableSerializer(serializers.ModelSerializer):
     class Meta:

@@ -33,3 +33,27 @@ class UserCreateView(generics.CreateAPIView):
     serializer_class = UserSerializer
 
 
+# 중복 확인(이메일, 아이디)
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def check_duplicate(request):
+    fields = [("email", "이메일"), ("username", "아이디")]
+
+    for field_key, display_name in fields:
+        value = request.data.get(field_key)
+        if value:
+            if User.objects.filter(**{field_key: value}).exists():
+                return Response(
+                    {"message": f"이미 사용 중인 {display_name}입니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response(
+                {"message": f"사용 가능한 {display_name}입니다."},
+                status=status.HTTP_200_OK,
+            )
+
+    return Response(
+        {"message": "잘못된 요청입니다."}, status=status.HTTP_400_BAD_REQUEST
+    )
+
+

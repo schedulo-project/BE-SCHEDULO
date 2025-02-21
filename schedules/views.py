@@ -5,6 +5,11 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from schedules.models import Tag, Schedule, TimeTable
 from schedules.serializers import TagSerializer, ScheduleSerializer, TimeTableSerializer
+from users.models import User
+
+# Test User
+TEST_USER = User.objects.get(id=1)
+
 
 # Tag 조회, 생성
 class TagListCreateAPIView(generics.ListCreateAPIView):

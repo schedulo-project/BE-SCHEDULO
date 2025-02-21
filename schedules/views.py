@@ -15,9 +15,13 @@ TEST_USER = User.objects.get(id=1)
 class TagListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = TagSerializer
 
+    def perform_create(self, serializer):
+        serializer.save(user=TEST_USER)
+
     def get_queryset(self):
-        return Tag.objects.filter(user=self.request.user)
-        
+        return Tag.objects.filter(user=TEST_USER)
+
+
 # Tag 수정, 삭제
 class TagRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TagSerializer

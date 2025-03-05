@@ -96,9 +96,6 @@ MIDDLEWARE = [
 ]
 
 #cors setting
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
-
 CORS_ALLOW_METHODS = [
     "DELETE",
     "GET",
@@ -118,6 +115,8 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
 ]
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [

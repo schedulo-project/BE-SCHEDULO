@@ -85,15 +85,15 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS= [
     "http://localhost:8000",
-    "http://localhost:5500",
+    "http://localhost:5173",
     "http://localhost:443",
 
     "http://13.124.140.60:8000",
-    "http://13.124.140.60:5500",
+    "http://13.124.140.60:5173",
     "http://13.124.140.60:443",
 
     "http://127.0.0.1:8000",
-    "http://127.0.0.1:5500",
+    "http://127.0.0.1:5173",
     "http://127.0.0.1:443",
 ]
 

@@ -71,8 +71,8 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=6),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-    "Update_LAST_LOGIN": True,
-    "ALgorith": "HS256",
+    "UPDATE_LAST_LOGIN": True,
+    "ALGORITHM": "HS256",
 }
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -85,8 +85,8 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -115,8 +115,21 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
 ]
+CORS_ALLOWED_ORIGINS= [
+    "http://localhost:8000",
+    "http://localhost:5173",
+    "http://localhost:443",
+
+    "http://13.124.140.60:8000",
+    "http://13.124.140.60:5173",
+    "http://13.124.140.60:443",
+
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:443",
+]
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
+
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [

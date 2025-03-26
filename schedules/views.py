@@ -4,7 +4,12 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from schedules.models import Tag, Schedule, TimeTable
-from schedules.serializers import TagSerializer, ScheduleSerializer, TimeTableSerializer
+from schedules.serializers import (
+    TagSerializer,
+    ScheduleSerializer,
+    GroupedScheduleSerializer,
+    TimeTableSerializer,
+)
 from users.models import User
 
 # Test User
@@ -49,25 +54,28 @@ class ScheduleListCreateAPIView(generics.CreateAPIView):
         return Schedule.objects.filter(user=TEST_USER)
 
 
-# Schedule 조회 (월, 주, 일)
+# Schedule 조회
 @api_view(["GET"])
 def schedules_list_api_view(request):
     first = request.GET.get("first", None)
     last = request.GET.get("last", None)
 
     if first and last:
-        first_date_instance = datetime.strptime(first, "%y%m%d").date()
-        last_date_instance = datetime.strptime(last, "%y%m%d").date()
+        first_date_instance = datetime.strptime(first, "%Y-%m-%d").date()
+        last_date_instance = datetime.strptime(last, "%Y-%m-%d").date()
         schedules = Schedule.objects.filter(
-            user=TEST_USER, scheduled_date__range=[first_date_instance, last_date_instance]
+            user=TEST_USER,
+            scheduled_date__range=[first_date_instance, last_date_instance],
         )
     elif first and not last:
-        first_date_instance = datetime.strptime(first, "%y%m%d").date()
-        schedules = Schedule.objects.filter(user=TEST_USER, scheduled_date=first_date_instance)
+        first_date_instance = datetime.strptime(first, "%Y-%m-%d").date()
+        schedules = Schedule.objects.filter(
+            user=TEST_USER, scheduled_date=first_date_instance
+        )
     else:
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
-    serializer = ScheduleSerializer(schedules, many=True)
+    serializer = GroupedScheduleSerializer(schedules)
     return Response(serializer.data)
 
 

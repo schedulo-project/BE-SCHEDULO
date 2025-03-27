@@ -49,7 +49,7 @@ class UserCreateView(generics.CreateAPIView):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def check_duplicate(request):
-    fields = [("email", "이메일"), ("username", "아이디")]
+    fields = [("email", "이메일"), ("student_id", "아이디")]
 
     for field_key, display_name in fields:
         value = request.data.get(field_key)

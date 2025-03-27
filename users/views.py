@@ -28,16 +28,28 @@ class UserDetailView(generics.RetrieveDestroyAPIView):
 
 # 회원가입
 class UserCreateView(generics.CreateAPIView):
-    permission_classes = [AllowAny]
-    queryset = User.objects.all()
     serializer_class = UserSerializer
+    queryset = User.objects.all()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(
+            {
+                "email": user.email,
+                "student_id": user.student_id if user.student_id else None,
+                "message": "회원가입이 성공적으로 완료되었습니다.",
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 # 중복 확인(이메일, 아이디)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def check_duplicate(request):
-    fields = [("email", "이메일"), ("username", "아이디")]
+    fields = [("email", "이메일"), ("student_id", "아이디")]
 
     for field_key, display_name in fields:
         value = request.data.get(field_key)

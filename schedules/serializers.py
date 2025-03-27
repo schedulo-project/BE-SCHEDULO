@@ -30,7 +30,8 @@ class GroupedScheduleSerializer(serializers.Serializer):
     schedules = serializers.SerializerMethodField()
 
     def get_schedules(self, obj):
-        schedule_data = Schedule.objects.all().order_by("scheduled_date")  # 날짜순 정렬
+        print(obj)
+        schedule_data = obj.order_by("scheduled_date")  # 날짜순 정렬
         serialized_data = ScheduleSerializer(schedule_data, many=True).data
 
         grouped_by_date = defaultdict(list)

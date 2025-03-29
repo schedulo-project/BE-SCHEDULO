@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
+from cryptography.fernet import Fernet
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -36,6 +37,9 @@ def get_secret(setting, secrets=secrets):
         raise ImproperlyConfigured(error_msg)
 
 SECRET_KEY = get_secret("SECRET_KEY")
+
+ENCRYPTION_KEY = "vq9CEfW1PiR3RoUCU08litYSy6MPPeYbFXvwJS8MjA4="  # 배포할 때 변경
+cipher_suite = Fernet(ENCRYPTION_KEY.encode())
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True

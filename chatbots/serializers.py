@@ -1,16 +1,8 @@
 from rest_framework import serializers
-from .models import Chatting, Answer
-
-
-class AnswerSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Answer
-        fields = "__all__"
+from .models import Chatting
 
 
 class ChattingSerializer(serializers.ModelSerializer):
-    answer = AnswerSerializer()
-
     class Meta:
         model = Chatting
         fields = "__all__"

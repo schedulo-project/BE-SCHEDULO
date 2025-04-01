@@ -48,12 +48,13 @@ class ScheduleCreateAPIView(generics.CreateAPIView):
         serializer = self.get_serializer(data=data)
         if serializer.is_valid():
             schedule = serializer.save(user=request.user)
-
+            tag_instances = []
             for tag_name in tag:
                 tag_instance, created = Tag.objects.get_or_create(
                     name=tag_name, user=request.user
                 )
-                schedule.tag.add(tag_instance)
+                tag_instances.append(tag_instance)
+            schedule.tag.set(tag_instances)
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -112,6 +113,25 @@ class ScheduleRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView
     serializer_class = ScheduleSerializer
     lookup_field = "id"
     lookup_url_kwarg = "schedule_id"
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data
+        tag = data.get("tag", [])
+
+        serializer = self.get_serializer(instance, data=request.data, partial=False)
+        if serializer.is_valid():
+            schedule = serializer.save(user=request.user)
+            tag_instances = []
+            for tag_name in tag:
+                tag_instance, created = Tag.objects.get_or_create(
+                    name=tag_name, user=request.user
+                )
+                tag_instances.append(tag_instance)
+            schedule.tag.set(tag_instances)
+
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def get_queryset(self):
         return Schedule.objects.filter(user=self.request.user)

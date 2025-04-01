@@ -38,14 +38,25 @@ class TagRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 
 # Schedule 생성
-class ScheduleListCreateAPIView(generics.CreateAPIView):
+class ScheduleCreateAPIView(generics.CreateAPIView):
     serializer_class = ScheduleSerializer
 
-    def perform_create(self, serializer):
-        tag = self.request.data.get("tag")
-        if tag:
-            tag_instance = Tag.objects.filter(id=int(tag))
-        serializer.save(tag=tag_instance, user=self.request.user)
+    def create(self, request):
+        data = request.data
+        tag = data.get("tag", [])
+
+        serializer = self.get_serializer(data=data)
+        if serializer.is_valid():
+            schedule = serializer.save(user=request.user)
+
+            for tag_name in tag:
+                tag_instance, created = Tag.objects.get_or_create(
+                    name=tag_name, user=request.user
+                )
+                schedule.tag.add(tag_instance)
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def get_queryset(self):
         return Schedule.objects.filter(user=self.request.user)
@@ -56,6 +67,8 @@ class ScheduleListCreateAPIView(generics.CreateAPIView):
 def schedules_list_api_view(request):
     first = request.GET.get("first", None)
     last = request.GET.get("last", None)
+    title = request.GET.get("title", None)
+    tag = request.GET.get("tag", None)
 
     if first and last:
         first_date_instance = datetime.strptime(first, "%Y-%m-%d").date()
@@ -71,6 +84,14 @@ def schedules_list_api_view(request):
         )
     else:
         return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    if not schedules.exists():
+        return Response(data={"schedules": {}}, status=status.HTTP_204_NO_CONTENT)
+
+    if title:
+        schedules = schedules.filter(title__icontains=title)
+    if tag:
+        schedules = schedules.filter(tag__name=tag)
 
     serializer = GroupedScheduleSerializer(schedules)
     return Response(serializer.data)

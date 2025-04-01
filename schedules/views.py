@@ -58,6 +58,16 @@ class ScheduleCreateAPIView(generics.CreateAPIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def delete(self, request):
+        ids = request.data.get("ids", None)
+        if not ids:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        schedules = Schedule.objects.filter(id__in=ids, user=request.user)
+        if schedules.exists():
+            schedules.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     def get_queryset(self):
         return Schedule.objects.filter(user=self.request.user)
 
@@ -97,20 +107,6 @@ def schedules_list_api_view(request):
     return Response(serializer.data)
 
 
-# Schedule 조회 by title
-@api_view(["GET"])
-def schedules_list_by_title_api_view(request):
-    title = request.GET.get("title", None)
-    if title:
-        schedules = Schedule.objects.filter(user=request.user, title__icontains=title)
-    else:
-        return Response(status=status.HTTP_400_BAD_REQUEST)
-
-    serializer = GroupedScheduleSerializer(schedules)
-    print(schedules)
-    return Response(serializer.data)
-
-
 # Schedule 단일 조회, 수정, 삭제
 class ScheduleRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ScheduleSerializer
@@ -119,6 +115,15 @@ class ScheduleRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView
 
     def get_queryset(self):
         return Schedule.objects.filter(user=self.request.user)
+
+
+@api_view(["DELETE"])
+def schedule_delete_api_view(request):
+    ids = request.data.get("ids", None)
+    schedules = Schedule.objects.filter(id__in=ids, user=request.user)
+    if schedules.exists():
+        schedules.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # TimeTable 조회, 생성, 수정

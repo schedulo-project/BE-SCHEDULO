@@ -10,7 +10,6 @@ urlpatterns = [
     path("", views.ScheduleCreateAPIView.as_view()),
     path("<int:schedule_id>/", views.ScheduleRetrieveUpdateDestroyAPIView.as_view()),
     path("list/", views.schedules_list_api_view),
-    path("list/title/", views.schedules_list_by_title_api_view),
     # TimeTable
     path("timetables/", views.TimeTableListCreateAPIView.as_view()),
     path(

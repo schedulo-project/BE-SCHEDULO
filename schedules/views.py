@@ -38,14 +38,36 @@ class TagRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 
 # Schedule 생성
-class ScheduleListCreateAPIView(generics.CreateAPIView):
+class ScheduleCreateAPIView(generics.CreateAPIView):
     serializer_class = ScheduleSerializer
 
-    def perform_create(self, serializer):
-        tag = self.request.data.get("tag")
-        if tag:
-            tag_instance = Tag.objects.filter(id=int(tag))
-        serializer.save(tag=tag_instance, user=self.request.user)
+    def create(self, request):
+        data = request.data
+        tag = data.get("tag", [])
+
+        serializer = self.get_serializer(data=data)
+        if serializer.is_valid():
+            schedule = serializer.save(user=request.user)
+            tag_instances = []
+            for tag_name in tag:
+                tag_instance, created = Tag.objects.get_or_create(
+                    name=tag_name, user=request.user
+                )
+                tag_instances.append(tag_instance)
+            schedule.tag.set(tag_instances)
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request):
+        ids = request.data.get("ids", None)
+        if not ids:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        schedules = Schedule.objects.filter(id__in=ids, user=request.user)
+        if schedules.exists():
+            schedules.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get_queryset(self):
         return Schedule.objects.filter(user=self.request.user)
@@ -56,6 +78,8 @@ class ScheduleListCreateAPIView(generics.CreateAPIView):
 def schedules_list_api_view(request):
     first = request.GET.get("first", None)
     last = request.GET.get("last", None)
+    title = request.GET.get("title", None)
+    tag = request.GET.get("tag", None)
 
     if first and last:
         first_date_instance = datetime.strptime(first, "%Y-%m-%d").date()
@@ -72,21 +96,15 @@ def schedules_list_api_view(request):
     else:
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
-    serializer = GroupedScheduleSerializer(schedules)
-    return Response(serializer.data)
+    if not schedules.exists():
+        return Response(data={"schedules": {}}, status=status.HTTP_204_NO_CONTENT)
 
-
-# Schedule 조회 by title
-@api_view(["GET"])
-def schedules_list_by_title_api_view(request):
-    title = request.GET.get("title", None)
     if title:
-        schedules = Schedule.objects.filter(user=request.user, title__icontains=title)
-    else:
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+        schedules = schedules.filter(title__icontains=title)
+    if tag:
+        schedules = schedules.filter(tag__name=tag)
 
     serializer = GroupedScheduleSerializer(schedules)
-    print(schedules)
     return Response(serializer.data)
 
 
@@ -96,8 +114,36 @@ class ScheduleRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView
     lookup_field = "id"
     lookup_url_kwarg = "schedule_id"
 
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data
+        tag = data.get("tag", [])
+
+        serializer = self.get_serializer(instance, data=request.data, partial=False)
+        if serializer.is_valid():
+            schedule = serializer.save(user=request.user)
+            tag_instances = []
+            for tag_name in tag:
+                tag_instance, created = Tag.objects.get_or_create(
+                    name=tag_name, user=request.user
+                )
+                tag_instances.append(tag_instance)
+            schedule.tag.set(tag_instances)
+
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     def get_queryset(self):
         return Schedule.objects.filter(user=self.request.user)
+
+
+@api_view(["DELETE"])
+def schedule_delete_api_view(request):
+    ids = request.data.get("ids", None)
+    schedules = Schedule.objects.filter(id__in=ids, user=request.user)
+    if schedules.exists():
+        schedules.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # TimeTable 조회, 생성, 수정

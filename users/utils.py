@@ -31,3 +31,15 @@ def login_attempt(driver, USER_ID, USER_PW):
         EC.element_to_be_clickable((By.NAME, "loginbutton"))
     )
     login_button.click()
+
+
+def check_error(driver):
+    """로그인 실패 여부 확인"""
+    try:
+        error_message = driver.find_element(
+            By.XPATH, '//*[@id="region-main"]/div/div/div/div[1]/div[1]/div[2]/form/p'
+        )
+        print("❌ 로그인 실패:", error_message.text)
+        return True
+    except:
+        return False

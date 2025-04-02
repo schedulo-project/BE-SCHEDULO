@@ -179,3 +179,30 @@ def get_all_first_semester_courses(driver, semester):
     )
     select = Select(select_element)
     return [option.text for option in select.options if f"[{semester}]" in option.text]
+
+
+def get_events_for_course(driver, course_text):
+    """특정 강좌의 이벤트를 가져오기"""
+    select_element = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located(
+            (By.CSS_SELECTOR, "select.select.autosubmit.cal_courses_flt")
+        )
+    )
+    select = Select(select_element)
+    select.select_by_visible_text(course_text)
+    time.sleep(2)
+
+    soup = BeautifulSoup(driver.page_source, "lxml")
+    date_elements = soup.select("div.day a")
+    event_lists = soup.select("ul.events-new")
+
+    events_by_date = {}
+    for i, date_text in enumerate([date.get_text().strip() for date in date_elements]):
+        try:
+            events = event_lists[i].select("li.calendar_event_course a")
+            event_texts = [event.get_text().strip() for event in events]
+            if event_texts:
+                events_by_date[date_text] = event_texts
+        except IndexError:
+            continue
+    return events_by_date

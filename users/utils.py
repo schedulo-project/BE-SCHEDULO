@@ -43,3 +43,26 @@ def check_error(driver):
         return True
     except:
         return False
+
+
+def get_courses(driver):
+    """수강 중인 과목 정보"""
+    driver.get("https://ecampus.smu.ac.kr/")
+
+    time.sleep(2)
+    soup = BeautifulSoup(driver.page_source, "lxml")
+
+    # 과목 리스트 찾기
+    courses = soup.select("ul.my-course-lists > li > div.course_box > a.course_link")
+
+    if not courses:
+        print("❌ 과목 정보를 찾을 수 없습니다.")
+        return
+
+    course_info = []
+    for course in courses:
+        course_title = course.select_one("div.course-title > h3").get_text(strip=True)
+        course_id = course["href"].split("=")[-1]
+        course_info.append((course_title, course_id))
+
+    return course_info

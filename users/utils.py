@@ -121,3 +121,51 @@ def get_syllabus(driver, course_id):
                 print(f"⚠️ 파싱 실패 - 강의 시간: {slot}")
 
     return course_name, course_time, schedules
+
+
+def save_to_timetable(self, user, courses_data):
+    """Save courses_data into the TimeTable model without duplicates."""
+    day_map = {
+        "월": "mon",
+        "화": "tue",
+        "수": "wed",
+        "목": "thu",
+        "금": "fri",
+        "토": "sat",
+        "일": "sun",
+    }
+
+    for course_name, schedules in courses_data:
+        for day, time_range, location in schedules:
+            start_str, end_str = time_range.split("~")
+            start_time = datetime.strptime(start_str, "%H:%M").time()
+            end_time = datetime.strptime(end_str, "%H:%M").time()
+            day_of_week = day_map[day]  # Convert Korean day to English abbreviation
+
+            # Ensure subject fits within 30 characters
+            subject = course_name[:30] if len(course_name) > 30 else course_name
+
+            tag, created = Tag.objects.get_or_create(name=subject, user=user)
+            if created:
+                print(f"✅ 태그 저장: {tag.name}")
+
+            # Check for existing entry to avoid duplicates
+            existing_entry = TimeTable.objects.filter(
+                subject=subject,
+                user=user,
+                day_of_week=day_of_week,
+                start_time=start_time,
+                end_time=end_time,
+            ).exists()
+
+            if not existing_entry:
+                TimeTable.objects.create(
+                    subject=subject,
+                    user=user,
+                    day_of_week=day_of_week,
+                    start_time=start_time,
+                    end_time=end_time,
+                )
+                print(
+                    f"✅ 과목정보 저장:: {subject} ({day_of_week}: {start_time} - {end_time})"
+                )

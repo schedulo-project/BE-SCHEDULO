@@ -103,3 +103,30 @@ class GetTimeTableView(APIView):
             )
         finally:
             driver.quit()
+
+
+# ecampus 일정 불러오기
+class CrawlingView(APIView):
+    def get(self, request):
+        student_id = self.request.user.student_id
+        student_password = self.request.user.get_student_password()
+
+        driver = webdriver.Chrome()
+        # ecampus login
+        login_attempt(driver, student_id, student_password)
+        if check_error(driver):
+            driver.quit()
+            return Response(
+                {"message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        else:
+            print("✅ 로그인 성공")
+
+        # 일정 불러오기
+        get_events(driver, request.user.id)
+        driver.quit()
+        return Response(
+            {"message": "일정을 모두 불러왔습니다."},
+            status=status.HTTP_200_OK,
+        )

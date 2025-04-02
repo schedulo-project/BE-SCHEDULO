@@ -33,20 +33,16 @@ class StudentInfoCheckView(APIView):
         student_password = request.data.get("student_password")
 
         driver = webdriver.Chrome()
-        try:
-            login_attempt(driver, student_id, student_password)
-            if check_error(driver):
-                return Response(
-                    {"message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            else:
-                return Response({"message": "로그인 성공"}, status=status.HTTP_200_OK)
-        except Exception as e:
-            print(f"오류 발생: {e}")
-            return Response(
-                {"message": "로그인 검증 중 오류가 발생했습니다."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-        finally:
+        # ecampus login
+        login_attempt(driver, student_id, student_password)
+        if check_error(driver):
             driver.quit()
+            return Response(
+                {"message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        else:
+            driver.quit()
+            return Response(
+                {"message": "올바른 학번, 비밀번호 입니다."}, status=status.HTTP_200_OK
+            )

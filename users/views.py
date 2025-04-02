@@ -155,11 +155,14 @@ def jwt_login_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
     token = RefreshToken.for_user(user)
+    access_token = str(token.access_token)
+    refresh_token = str(token)
     serializer = UserSerializer(user)
     return Response(
         status=status.HTTP_200_OK,
         data={
-            "token": str(token.access_token),
+            "access": access_token,
+            "refresh": refresh_token,
             "user": serializer.data,
         },
     )

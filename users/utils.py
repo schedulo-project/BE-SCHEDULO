@@ -215,3 +215,93 @@ def move_to_next_month(driver):
     next_month_button.click()
     time.sleep(2)
     print("➡️ 다음 달로 이동했습니다.")
+
+
+def get_events(driver, user, year=None, months=None):
+    """학기 중 일정"""
+    if year is None:
+        year = datetime.now().year
+
+    current_month = datetime.now().month
+
+    # 학기 정의
+    SEMESTER_1 = range(3, 7)  # 3월~6월 (1학기)
+    SEMESTER_2 = range(9, 13)  # 9월~12월 (2학기)
+
+    if months is None:
+        if current_month in SEMESTER_1:
+            start_month = current_month
+            end_month = 6
+            semester_name = "1학기"
+        elif current_month in SEMESTER_2:
+            start_month = current_month
+            end_month = 12
+            semester_name = "2학기"
+        else:
+            print(
+                f"📅 현재 {current_month}월은 학기 중이 아닙니다. (1학기: 3~6월, 2학기: 9~12월)"
+            )
+            return
+
+        months = list(range(start_month, end_month + 1))
+
+    for month in months:
+        start_date = datetime(year, month, 1)
+        timestamp = calendar.timegm(start_date.timetuple())
+        url = f"https://ecampus.smu.ac.kr/calendar/view.php?view=month&course=1&time={timestamp}"
+        driver.get(url)
+        time.sleep(2)
+
+        soup = BeautifulSoup(driver.page_source, "lxml")
+        year_month = soup.select_one("h2.current").get_text().strip()
+        print(f"\n📅 {year_month} 이벤트")
+
+        # 수업이 아닌 항목 제외
+        first_semester_courses = get_all_first_semester_courses(driver, semester_name)
+        if not first_semester_courses:
+            print("❌ 수강하는 강좌가 없습니다.")
+            move_to_next_month(driver)
+            continue
+
+        for course_text in first_semester_courses:
+            print(f"선택된 강좌: {course_text}")
+            # get events
+            events = get_events_for_course(driver, course_text)
+
+            subject_name = (
+                re.search(r"\](.*?)\(", course_text).group(1).strip()
+                if re.search(r"\](.*?)\(", course_text)
+                else course_text
+            )
+            tag, _ = Tag.objects.get_or_create(name=subject_name, user=user)
+
+            for date, event_list in events.items():
+                scheduled_date = datetime(year, month, int(date)).date()
+                print(f"\n📅 {scheduled_date}")
+                for event in event_list:
+                    print(f"  - {event}")
+                    # 중복 체크
+                    if not Schedule.objects.filter(
+                        user=user, scheduled_date=scheduled_date, title=event
+                    ).exists():
+                        data = {
+                            "title": event,
+                            "scheduled_date": scheduled_date,
+                            "user": user,
+                        }
+                        serializer = ScheduleSerializer(
+                            data=data, context={"request": None}
+                        )
+                        if serializer.is_valid():
+                            schedule = serializer.save()
+                            # save_tags
+                            schedule.tag.add(tag)
+                            print(f" ✅ 저장됨: {event}")
+                        else:
+                            print(f"  저장 실패: {serializer.errors}")
+                    else:
+                        print(f"  중복 데이터 스킵: {event}")
+            if not events:
+                print("  (이벤트 없음)")
+
+        move_to_next_month(driver)

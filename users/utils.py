@@ -142,7 +142,6 @@ def save_to_timetable(self, user, courses_data):
             end_time = datetime.strptime(end_str, "%H:%M").time()
             day_of_week = day_map[day]  # Convert Korean day to English abbreviation
 
-            # Ensure subject fits within 30 characters
             subject = course_name[:30] if len(course_name) > 30 else course_name
 
             tag, created = Tag.objects.get_or_create(name=subject, user=user)
@@ -169,3 +168,14 @@ def save_to_timetable(self, user, courses_data):
                 print(
                     f"✅ 과목정보 저장:: {subject} ({day_of_week}: {start_time} - {end_time})"
                 )
+
+
+def get_all_first_semester_courses(driver, semester):
+    """드롭다운에서 수강하는 강좌 가져오기"""
+    select_element = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located(
+            (By.CSS_SELECTOR, "select.select.autosubmit.cal_courses_flt")
+        )
+    )
+    select = Select(select_element)
+    return [option.text for option in select.options if f"[{semester}]" in option.text]

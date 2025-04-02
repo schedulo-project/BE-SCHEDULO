@@ -206,3 +206,12 @@ def get_events_for_course(driver, course_text):
         except IndexError:
             continue
     return events_by_date
+
+
+def move_to_next_month(driver):
+    next_month_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, "a.arrow_link.next"))
+    )
+    next_month_button.click()
+    time.sleep(2)
+    print("➡️ 다음 달로 이동했습니다.")

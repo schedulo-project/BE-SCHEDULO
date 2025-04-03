@@ -1,12 +1,13 @@
 import json
+import os
 import google.generativeai as genai
 from django.utils.timezone import now
+from dotenv import load_dotenv
 
 # API 키 로드
-with open("secrets.json") as f:
-    secrets = json.load(f)
+load_dotenv()
 
-API_KEY = secrets["GEMIINI_API_KEY"]
+API_KEY = os.getenv("GEMIINI_API_KEY")
 
 genai.configure(api_key=API_KEY)
 

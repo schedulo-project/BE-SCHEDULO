@@ -7,6 +7,8 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from django.views import View
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+import tempfile
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -26,26 +28,37 @@ from users.utils import (
 )
 
 
+# chromedriver 설정 함수
+def get_driver():
+    options = Options()
+    options.add_argument("--headless")  # Headless 모드 설정
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    user_data_dir = tempfile.mkdtemp()
+    options.add_argument(f"--user-data-dir={user_data_dir}")
+    return webdriver.Chrome(options=options)
+
+
 # 학번, 비밀번호 유효성 검사
 class StudentInfoCheckView(APIView):
     def post(self, request):
         student_id = request.data.get("student_id")
         student_password = request.data.get("student_password")
 
-        driver = webdriver.Chrome()
-        # ecampus login
-        login_attempt(driver, student_id, student_password)
-        if check_error(driver):
-            driver.quit()
-            return Response(
-                {"message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        else:
-            driver.quit()
+        driver = get_driver()
+        try:
+            # ecampus login
+            login_attempt(driver, student_id, student_password)
+            if check_error(driver):
+                return Response(
+                    {"message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             return Response(
                 {"message": "올바른 학번, 비밀번호 입니다."}, status=status.HTTP_200_OK
             )
+        finally:
+            driver.quit()
 
 
 ##시간표 불러오기
@@ -54,12 +67,11 @@ class GetTimeTableView(APIView):
         student_id = self.request.user.student_id
         student_password = self.request.user.get_student_password()
 
-        driver = webdriver.Chrome()
+        driver = get_driver()
         try:
             # ecampus login
             login_attempt(driver, student_id, student_password)
             if check_error(driver):
-                driver.quit()
                 return Response(
                     {"message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -111,22 +123,22 @@ class CrawlingView(APIView):
         student_id = self.request.user.student_id
         student_password = self.request.user.get_student_password()
 
-        driver = webdriver.Chrome()
-        # ecampus login
-        login_attempt(driver, student_id, student_password)
-        if check_error(driver):
-            driver.quit()
-            return Response(
-                {"message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        else:
+        driver = get_driver()
+        try:
+            # ecampus login
+            login_attempt(driver, student_id, student_password)
+            if check_error(driver):
+                return Response(
+                    {"message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             print("✅ 로그인 성공")
 
-        # 일정 불러오기
-        get_events(driver, request.user.id)
-        driver.quit()
-        return Response(
-            {"message": "일정을 모두 불러왔습니다."},
-            status=status.HTTP_200_OK,
-        )
+            # 일정 불러오기
+            get_events(driver, request.user.id)
+            return Response(
+                {"message": "일정을 모두 불러왔습니다."},
+                status=status.HTTP_200_OK,
+            )
+        finally:
+            driver.quit()

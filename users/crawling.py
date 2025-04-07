@@ -9,6 +9,8 @@ from django.views import View
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 import tempfile
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -34,9 +36,13 @@ def get_driver():
     options.add_argument("--headless")  # Headless 모드 설정
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-extensions")  # 확장 프로그램 비활성화
+    options.add_argument("--disable-gpu")  # GPU 가속 비활성화
+
     user_data_dir = tempfile.mkdtemp()
     options.add_argument(f"--user-data-dir={user_data_dir}")
-    return webdriver.Chrome(options=options)
+    service = Service(executable_path=ChromeDriverManager().install())
+    return webdriver.Chrome(service=service, options=options)
 
 
 # 학번, 비밀번호 유효성 검사

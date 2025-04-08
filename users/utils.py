@@ -245,6 +245,9 @@ def get_events(driver, user, year=None, months=None):
 
         months = list(range(start_month, end_month + 1))
 
+    # 과목별 이벤트 저장
+    course_events = {}
+
     for month in months:
         start_date = datetime(year, month, 1)
         timestamp = calendar.timegm(start_date.timetuple())
@@ -275,6 +278,10 @@ def get_events(driver, user, year=None, months=None):
             )
             tag, _ = Tag.objects.get_or_create(name=subject_name, user=user)
 
+            # 과목별 이벤트 저장
+            if subject_name not in course_events:
+                course_events[subject_name] = []
+
             for date, event_list in events.items():
                 scheduled_date = datetime(year, month, int(date)).date()
                 print(f"\n📅 {scheduled_date}")
@@ -297,6 +304,12 @@ def get_events(driver, user, year=None, months=None):
                             # save_tags
                             schedule.tag.add(tag)
                             print(f" ✅ 저장됨: {event}")
+                            course_events[subject_name].append(
+                                {
+                                    "title": event,
+                                    "scheduled_date": scheduled_date,
+                                }
+                            )
                         else:
                             print(f"  저장 실패: {serializer.errors}")
                     else:
@@ -305,3 +318,5 @@ def get_events(driver, user, year=None, months=None):
                 print("  (이벤트 없음)")
 
         move_to_next_month(driver)
+
+    return course_events

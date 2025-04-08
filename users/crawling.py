@@ -141,9 +141,18 @@ class CrawlingView(APIView):
             print("✅ 로그인 성공")
 
             # 일정 불러오기
-            get_events(driver, request.user.id)
+            course_events = get_events(driver, request.user.id)
+            if not course_events:
+                return Response(
+                    {"message": "새로운 일정이 없습니다."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
             return Response(
-                {"message": "일정을 모두 불러왔습니다."},
+                {
+                    "message": "일정을 모두 불러왔습니다.",
+                    "courses": course_events,  # 중복 제외한 과목 정보 반환
+                },
                 status=status.HTTP_200_OK,
             )
         finally:

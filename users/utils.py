@@ -13,6 +13,13 @@ from schedules.models import Schedule, Tag, TimeTable
 from schedules.serializers import ScheduleSerializer
 
 
+# log test
+import logging
+
+# 로거 설정
+logger = logging.getLogger("schedulo")  # myapp 로거를 사용
+
+
 def login_attempt(driver, USER_ID, USER_PW):
     """ecampus 로그인 실행"""
     driver.get("https://ecampus.smu.ac.kr/login.php")  # 로그인 페이지 URL
@@ -39,7 +46,7 @@ def check_error(driver):
         error_message = driver.find_element(
             By.XPATH, '//*[@id="region-main"]/div/div/div/div[1]/div[1]/div[2]/form/p'
         )
-        print("❌ 로그인 실패:", error_message.text)
+        logger.error("❌ 로그인 실패:", error_message.text)
         return True
     except:
         return False
@@ -56,7 +63,7 @@ def get_courses(driver):
     courses = soup.select("ul.my-course-lists > li > div.course_box > a.course_link")
 
     if not courses:
-        print("❌ 과목 정보를 찾을 수 없습니다.")
+        logger.warning("❌ 과목 정보를 찾을 수 없습니다.")
         return
 
     course_info = []
@@ -118,7 +125,7 @@ def get_syllabus(driver, course_id):
                     time_range = f"{start_hour:02d}:00~{end_hour:02d}:00"
                     schedules.append((day, time_range, location))
             else:
-                print(f"⚠️ 파싱 실패 - 강의 시간: {slot}")
+                logger.error(f"⚠️ 파싱 실패 - 강의 시간: {slot}")
 
     return course_name, course_time, schedules
 
@@ -146,7 +153,7 @@ def save_to_timetable(self, user, courses_data):
 
             tag, created = Tag.objects.get_or_create(name=subject, user=user)
             if created:
-                print(f"✅ 태그 저장: {tag.name}")
+                logger.info(f"✅ 태그 저장: {tag.name}")
 
             # Check for existing entry to avoid duplicates
             existing_entry = TimeTable.objects.filter(
@@ -165,7 +172,7 @@ def save_to_timetable(self, user, courses_data):
                     start_time=start_time,
                     end_time=end_time,
                 )
-                print(
+                logger.info(
                     f"✅ 과목정보 저장:: {subject} ({day_of_week}: {start_time} - {end_time})"
                 )
 
@@ -190,7 +197,6 @@ def get_events_for_course(driver, course_text):
     )
     select = Select(select_element)
     select.select_by_visible_text(course_text)
-    time.sleep(2)
 
     soup = BeautifulSoup(driver.page_source, "lxml")
     date_elements = soup.select("div.day a")
@@ -213,8 +219,8 @@ def move_to_next_month(driver):
         EC.element_to_be_clickable((By.CSS_SELECTOR, "a.arrow_link.next"))
     )
     next_month_button.click()
-    time.sleep(2)
-    print("➡️ 다음 달로 이동했습니다.")
+    time.sleep(1)
+    logger.debug("➡️ 다음 달로 이동했습니다.")
 
 
 def get_events(driver, user, year=None, months=None):
@@ -238,7 +244,7 @@ def get_events(driver, user, year=None, months=None):
             end_month = 12
             semester_name = "2학기"
         else:
-            print(
+            logger.debug(
                 f"📅 현재 {current_month}월은 학기 중이 아닙니다. (1학기: 3~6월, 2학기: 9~12월)"
             )
             return
@@ -257,17 +263,17 @@ def get_events(driver, user, year=None, months=None):
 
         soup = BeautifulSoup(driver.page_source, "lxml")
         year_month = soup.select_one("h2.current").get_text().strip()
-        print(f"\n📅 {year_month} 이벤트")
+        logger.debug(f"\n📅 {year_month} 이벤트")
 
         # 수업이 아닌 항목 제외
         first_semester_courses = get_all_first_semester_courses(driver, semester_name)
         if not first_semester_courses:
-            print("❌ 수강하는 강좌가 없습니다.")
+            logger.debug("❌ 수강하는 강좌가 없습니다.")
             move_to_next_month(driver)
             continue
 
         for course_text in first_semester_courses:
-            print(f"선택된 강좌: {course_text}")
+            logger.debug(f"선택된 강좌: {course_text}")
             # get events
             events = get_events_for_course(driver, course_text)
 
@@ -284,9 +290,9 @@ def get_events(driver, user, year=None, months=None):
 
             for date, event_list in events.items():
                 scheduled_date = datetime(year, month, int(date)).date()
-                print(f"\n📅 {scheduled_date}")
+                logger.debug(f"\n📅 {scheduled_date}")
                 for event in event_list:
-                    print(f"  - {event}")
+                    logger.debug(f"  - {event}")
                     # 중복 체크
                     if not Schedule.objects.filter(
                         user=user, scheduled_date=scheduled_date, title=event
@@ -303,7 +309,7 @@ def get_events(driver, user, year=None, months=None):
                             schedule = serializer.save()
                             # save_tags
                             schedule.tag.add(tag)
-                            print(f" ✅ 저장됨: {event}")
+                            logger.debug(f" ✅ 저장됨: {event}")
                             course_events[subject_name].append(
                                 {
                                     "title": event,
@@ -311,11 +317,11 @@ def get_events(driver, user, year=None, months=None):
                                 }
                             )
                         else:
-                            print(f"  저장 실패: {serializer.errors}")
+                            logger.warning(f"  저장 실패: {serializer.errors}")
                     else:
-                        print(f"  중복 데이터 스킵: {event}")
+                        logger.debug(f"  중복 데이터 스킵: {event}")
             if not events:
-                print("  (이벤트 없음)")
+                logger.debug("  (이벤트 없음)")
 
         move_to_next_month(driver)
 

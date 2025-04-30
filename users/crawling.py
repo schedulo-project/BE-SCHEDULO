@@ -29,6 +29,12 @@ from users.utils import (
     save_to_timetable,
 )
 
+# log test
+import logging
+
+# 로거 설정
+logger = logging.getLogger("schedulo")  # myapp 로거를 사용
+
 
 # chromedriver 설정 함수
 def get_driver():
@@ -83,7 +89,7 @@ class GetTimeTableView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             else:
-                print("✅ 로그인 성공!")
+                logger.info("✅ 로그인 성공!")
 
             # 과목 불러오기
             courses = get_courses(driver)
@@ -94,7 +100,7 @@ class GetTimeTableView(APIView):
                 )
 
             courses_data = []
-            print("\n📚 수강 중인 과목 목록:")
+            logger.debug("\n📚 수강 중인 과목 목록:")
             for course_title, course_id in courses:
                 # 시간표 데이터 조회
                 course_name, course_time, schedules = get_syllabus(driver, course_id)
@@ -103,8 +109,8 @@ class GetTimeTableView(APIView):
                 )
 
                 if course_time != "정보 없음":
-                    print(f"  - {display_name}")
-                    print(f"    🕒 강의시간: {course_time}")
+                    logger.debug(f"  - {display_name}")
+                    logger.debug(f"    🕒 강의시간: {course_time}")
                     if schedules:
                         # Explicitly append a 2-tuple
                         courses_data.append((display_name, schedules))
@@ -138,10 +144,11 @@ class CrawlingView(APIView):
                     {"message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            print("✅ 로그인 성공")
+            logger.info("✅ 로그인 성공")
 
             # 일정 불러오기
             course_events = get_events(driver, request.user.id)
+            logger.debug("test:", course_events)
             if not course_events:
                 return Response(
                     {"message": "새로운 일정이 없습니다."},

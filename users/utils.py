@@ -56,7 +56,14 @@ def get_courses(driver):
     """수강 중인 과목 정보"""
     driver.get("https://ecampus.smu.ac.kr/")
 
-    time.sleep(2)
+    try:
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "ul.my-course-lists"))
+        )
+    except Exception as e:
+        logger.error("과목 리스트 로딩 실패: %s", e)
+        return []
+
     soup = BeautifulSoup(driver.page_source, "lxml")
 
     # 과목 리스트 찾기
@@ -68,9 +75,11 @@ def get_courses(driver):
 
     course_info = []
     for course in courses:
-        course_title = course.select_one("div.course-title > h3").get_text(strip=True)
-        course_id = course["href"].split("=")[-1]
-        course_info.append((course_title, course_id))
+        title_el = course.select_one("div.course-title > h3")
+        if title_el:
+            course_title = title_el.get_text(strip=True)
+            course_id = course["href"].split("=")[-1]
+            course_info.append((course_title, course_id))
 
     return course_info
 
@@ -80,54 +89,77 @@ def get_syllabus(driver, course_id):
     syllabus_url = (
         f"https://ecampus.smu.ac.kr/local/ubion/setting/syllabus.php?id={course_id}"
     )
-    driver.get(syllabus_url)
 
-    time.sleep(2)
+    try:
+        driver.get(syllabus_url)
+        # WebDriverWait(driver, 5).until(
+        #     EC.presence_of_element_located((By.TAG_NAME, "table"))
+        # )
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, "region-main"))
+        )
+    except Exception as e:
+        logger.error("강의 계획서 로딩 실패: %s", e)
+        return "정보 없음", "정보 없음", []
+
     soup = BeautifulSoup(driver.page_source, "lxml")
 
-    # "교과목명" 파싱
-    course_name_th = soup.find("th", string=re.compile("교과목명"))
-    course_name = (
-        course_name_th.find_next("td").get_text(strip=True)
-        if course_name_th
-        else "정보 없음"
-    )
+    # 강의계획서가 없는 경우 (텍스트 기반 체크)
+    if soup.find(string=re.compile("등록된 강의계획서가 없습니다")):
+        logger.info(f"❌ 강의계획서 없음: {course_id}")
+        return "정보 없음", "정보 없음", []
 
-    # "강의시간" 파싱
-    course_time_th = soup.find("th", string=re.compile("강의시간"))
-    course_time = (
-        course_time_th.find_next("td").get_text(strip=True)
-        if course_time_th
-        else "정보 없음"
-    )
+    try:
 
-    # 강의 시간 파싱 (시간표용 데이터 준비)
-    schedules = []
-    if course_time != "정보 없음":
-        time_slots = course_time.split()
-        for slot in time_slots:
-            match = re.match(
-                r"([월화수목금토일])(?:\s*)(\d+(?:,\d+)*|-?\d+(?:-\d+)?|\d+)\((.+?)\)",
-                slot,
-            )
-            if match:
+        # "교과목명" 파싱
+        course_name_th = soup.find("th", string=re.compile("교과목명"))
+        course_name = (
+            course_name_th.find_next("td").get_text(strip=True)
+            if course_name_th
+            else "정보 없음"
+        )
+
+        # "강의시간" 파싱
+        course_time_th = soup.find("th", string=re.compile("강의시간"))
+        course_time = (
+            course_time_th.find_next("td").get_text(strip=True)
+            if course_time_th
+            else "정보 없음"
+        )
+
+        # 시간표 정보 정제
+        schedules = []
+        if course_time != "정보 없음":
+            for slot in course_time.split():
+                match = re.match(
+                    r"([월화수목금토일])(\d+(?:,\d+)*|\d+-\d+)\((.*?)\)", slot
+                )
+                if not match:
+                    logger.warning(f"⚠️ 강의시간 파싱 실패: {slot}")
+                    continue
+
                 day, periods_part, location = match.groups()
-                if "," in periods_part:
-                    periods = [int(p) for p in periods_part.split(",")]
-                elif "-" in periods_part:
-                    start, end = map(int, periods_part.split("-"))
-                    periods = list(range(start, end + 1))
-                else:
-                    periods = [int(periods_part)]
+                periods = (
+                    list(map(int, periods_part.split(",")))
+                    if "," in periods_part
+                    else (
+                        list(range(*map(int, periods_part.split("-"))))
+                        if "-" in periods_part
+                        else [int(periods_part)]
+                    )
+                )
+
                 for period in periods:
                     start_hour = period + 8
                     end_hour = start_hour + 1
                     time_range = f"{start_hour:02d}:00~{end_hour:02d}:00"
                     schedules.append((day, time_range, location))
-            else:
-                logger.error(f"⚠️ 파싱 실패 - 강의 시간: {slot}")
 
-    return course_name, course_time, schedules
+        return course_name, course_time, schedules
+
+    except Exception as e:
+        logger.error(f"⚠️ 강의계획서 파싱 오류 - {course_id}: {e}")
+        return "정보 없음", "정보 없음", []
 
 
 def save_to_timetable(self, user, courses_data):

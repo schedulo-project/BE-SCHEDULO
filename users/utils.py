@@ -60,28 +60,30 @@ def get_courses(driver):
         WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "ul.my-course-lists"))
         )
+        soup = BeautifulSoup(driver.page_source, "lxml")
+
+        # 과목 리스트 찾기
+        courses = soup.select(
+            "ul.my-course-lists > li > div.course_box > a.course_link"
+        )
+
+        if not courses:
+            logger.warning("❌ 과목 정보를 찾을 수 없습니다.")
+            return []
+
+        course_info = []
+        for course in courses:
+            title_el = course.select_one("div.course-title > h3")
+            if title_el:
+                course_title = title_el.get_text(strip=True)
+                course_id = course["href"].split("=")[-1]
+                course_info.append((course_title, course_id))
+
+        return course_info
+
     except Exception as e:
         logger.error("과목 리스트 로딩 실패: %s", e)
         return []
-
-    soup = BeautifulSoup(driver.page_source, "lxml")
-
-    # 과목 리스트 찾기
-    courses = soup.select("ul.my-course-lists > li > div.course_box > a.course_link")
-
-    if not courses:
-        logger.warning("❌ 과목 정보를 찾을 수 없습니다.")
-        return
-
-    course_info = []
-    for course in courses:
-        title_el = course.select_one("div.course-title > h3")
-        if title_el:
-            course_title = title_el.get_text(strip=True)
-            course_id = course["href"].split("=")[-1]
-            course_info.append((course_title, course_id))
-
-    return course_info
 
 
 def get_syllabus(driver, course_id):

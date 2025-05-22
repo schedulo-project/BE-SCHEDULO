@@ -150,7 +150,6 @@ class CrawlingView(APIView):
 
             # 일정 불러오기
             course_events = get_events(driver, request.user.id)
-            logger.debug("test:", course_events)
             if not course_events:
                 return Response(
                     {"message": "새로운 일정이 없습니다."},

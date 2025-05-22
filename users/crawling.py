@@ -48,7 +48,9 @@ def get_driver():
     user_data_dir = tempfile.mkdtemp()
     options.add_argument(f"--user-data-dir={user_data_dir}")
     service = Service(executable_path=ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=options)
+    driver = webdriver.Chrome(service=service, options=options)
+    driver.set_page_load_timeout(30)
+    return driver
 
 
 # 학번, 비밀번호 유효성 검사
@@ -148,7 +150,6 @@ class CrawlingView(APIView):
 
             # 일정 불러오기
             course_events = get_events(driver, request.user.id)
-            logger.debug("test:", course_events)
             if not course_events:
                 return Response(
                     {"message": "새로운 일정이 없습니다."},

@@ -56,23 +56,34 @@ def get_courses(driver):
     """수강 중인 과목 정보"""
     driver.get("https://ecampus.smu.ac.kr/")
 
-    time.sleep(2)
-    soup = BeautifulSoup(driver.page_source, "lxml")
+    try:
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "ul.my-course-lists"))
+        )
+        soup = BeautifulSoup(driver.page_source, "lxml")
 
-    # 과목 리스트 찾기
-    courses = soup.select("ul.my-course-lists > li > div.course_box > a.course_link")
+        # 과목 리스트 찾기
+        courses = soup.select(
+            "ul.my-course-lists > li > div.course_box > a.course_link"
+        )
 
-    if not courses:
-        logger.warning("❌ 과목 정보를 찾을 수 없습니다.")
-        return
+        if not courses:
+            logger.warning("❌ 과목 정보를 찾을 수 없습니다.")
+            return []
 
-    course_info = []
-    for course in courses:
-        course_title = course.select_one("div.course-title > h3").get_text(strip=True)
-        course_id = course["href"].split("=")[-1]
-        course_info.append((course_title, course_id))
+        course_info = []
+        for course in courses:
+            title_el = course.select_one("div.course-title > h3")
+            if title_el:
+                course_title = title_el.get_text(strip=True)
+                course_id = course["href"].split("=")[-1]
+                course_info.append((course_title, course_id))
 
-    return course_info
+        return course_info
+
+    except Exception as e:
+        logger.error("과목 리스트 로딩 실패: %s", e)
+        return []
 
 
 def get_syllabus(driver, course_id):
@@ -80,54 +91,77 @@ def get_syllabus(driver, course_id):
     syllabus_url = (
         f"https://ecampus.smu.ac.kr/local/ubion/setting/syllabus.php?id={course_id}"
     )
-    driver.get(syllabus_url)
 
-    time.sleep(2)
+    try:
+        driver.get(syllabus_url)
+        # WebDriverWait(driver, 5).until(
+        #     EC.presence_of_element_located((By.TAG_NAME, "table"))
+        # )
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, "region-main"))
+        )
+    except Exception as e:
+        logger.error("강의 계획서 로딩 실패: %s", e)
+        return "정보 없음", "정보 없음", []
+
     soup = BeautifulSoup(driver.page_source, "lxml")
 
-    # "교과목명" 파싱
-    course_name_th = soup.find("th", string=re.compile("교과목명"))
-    course_name = (
-        course_name_th.find_next("td").get_text(strip=True)
-        if course_name_th
-        else "정보 없음"
-    )
+    # 강의계획서가 없는 경우 (텍스트 기반 체크)
+    if soup.find(string=re.compile("등록된 강의계획서가 없습니다")):
+        logger.info(f"❌ 강의계획서 없음: {course_id}")
+        return "정보 없음", "정보 없음", []
 
-    # "강의시간" 파싱
-    course_time_th = soup.find("th", string=re.compile("강의시간"))
-    course_time = (
-        course_time_th.find_next("td").get_text(strip=True)
-        if course_time_th
-        else "정보 없음"
-    )
+    try:
 
-    # 강의 시간 파싱 (시간표용 데이터 준비)
-    schedules = []
-    if course_time != "정보 없음":
-        time_slots = course_time.split()
-        for slot in time_slots:
-            match = re.match(
-                r"([월화수목금토일])(?:\s*)(\d+(?:,\d+)*|-?\d+(?:-\d+)?|\d+)\((.+?)\)",
-                slot,
-            )
-            if match:
+        # "교과목명" 파싱
+        course_name_th = soup.find("th", string=re.compile("교과목명"))
+        course_name = (
+            course_name_th.find_next("td").get_text(strip=True)
+            if course_name_th
+            else "정보 없음"
+        )
+
+        # "강의시간" 파싱
+        course_time_th = soup.find("th", string=re.compile("강의시간"))
+        course_time = (
+            course_time_th.find_next("td").get_text(strip=True)
+            if course_time_th
+            else "정보 없음"
+        )
+
+        # 시간표 정보 정제
+        schedules = []
+        if course_time != "정보 없음":
+            for slot in course_time.split():
+                match = re.match(
+                    r"([월화수목금토일])(\d+(?:,\d+)*|\d+-\d+)\((.*?)\)", slot
+                )
+                if not match:
+                    logger.warning(f"⚠️ 강의시간 파싱 실패: {slot}")
+                    continue
+
                 day, periods_part, location = match.groups()
-                if "," in periods_part:
-                    periods = [int(p) for p in periods_part.split(",")]
-                elif "-" in periods_part:
-                    start, end = map(int, periods_part.split("-"))
-                    periods = list(range(start, end + 1))
-                else:
-                    periods = [int(periods_part)]
+                periods = (
+                    list(map(int, periods_part.split(",")))
+                    if "," in periods_part
+                    else (
+                        list(range(*map(int, periods_part.split("-"))))
+                        if "-" in periods_part
+                        else [int(periods_part)]
+                    )
+                )
+
                 for period in periods:
                     start_hour = period + 8
                     end_hour = start_hour + 1
                     time_range = f"{start_hour:02d}:00~{end_hour:02d}:00"
                     schedules.append((day, time_range, location))
-            else:
-                logger.error(f"⚠️ 파싱 실패 - 강의 시간: {slot}")
 
-    return course_name, course_time, schedules
+        return course_name, course_time, schedules
+
+    except Exception as e:
+        logger.error(f"⚠️ 강의계획서 파싱 오류 - {course_id}: {e}")
+        return "정보 없음", "정보 없음", []
 
 
 def save_to_timetable(self, user, courses_data):
@@ -179,13 +213,19 @@ def save_to_timetable(self, user, courses_data):
 
 def get_all_first_semester_courses(driver, semester):
     """드롭다운에서 수강하는 강좌 가져오기"""
-    select_element = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located(
-            (By.CSS_SELECTOR, "select.select.autosubmit.cal_courses_flt")
+    try:
+        select_element = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, "select.select.autosubmit.cal_courses_flt")
+            )
         )
-    )
-    select = Select(select_element)
-    return [option.text for option in select.options if f"[{semester}]" in option.text]
+        select = Select(select_element)
+        return [
+            option.text for option in select.options if f"[{semester}]" in option.text
+        ]
+    except Exception as e:
+        logger.error("과목 드롭다운 로딩 실패: %s", e)
+        return []
 
 
 def get_events_for_course(driver, course_text):
@@ -197,6 +237,7 @@ def get_events_for_course(driver, course_text):
     )
     select = Select(select_element)
     select.select_by_visible_text(course_text)
+    time.sleep(0.5)
 
     soup = BeautifulSoup(driver.page_source, "lxml")
     date_elements = soup.select("div.day a")
@@ -215,20 +256,24 @@ def get_events_for_course(driver, course_text):
 
 
 def move_to_next_month(driver):
-    next_month_button = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.CSS_SELECTOR, "a.arrow_link.next"))
-    )
-    next_month_button.click()
-    time.sleep(1)
-    logger.debug("➡️ 다음 달로 이동했습니다.")
+    try:
+        next_month_button = WebDriverWait(driver, 5).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "a.arrow_link.next"))
+        )
+        next_month_button.click()
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "h2.current"))
+        )
+        logger.debug("➡️ 다음 달로 이동했습니다.")
+    except Exception as e:
+        logger.error("❌ 다음 달 이동 실패: %s", e)
 
 
 def get_events(driver, user, year=None, months=None):
     """학기 중 일정"""
-    if year is None:
-        year = datetime.now().year
-
-    current_month = datetime.now().month
+    now = datetime.now()
+    year = year or now.year
+    current_month = now.month
 
     # 학기 정의
     SEMESTER_1 = range(3, 7)  # 3월~6월 (1학기)
@@ -236,20 +281,16 @@ def get_events(driver, user, year=None, months=None):
 
     if months is None:
         if current_month in SEMESTER_1:
-            start_month = current_month
-            end_month = 6
+            months = list(range(current_month, 7))
             semester_name = "1학기"
         elif current_month in SEMESTER_2:
-            start_month = current_month
-            end_month = 12
+            months = list(range(current_month, 13))
             semester_name = "2학기"
         else:
             logger.debug(
                 f"📅 현재 {current_month}월은 학기 중이 아닙니다. (1학기: 3~6월, 2학기: 9~12월)"
             )
-            return
-
-        months = list(range(start_month, end_month + 1))
+            return {}
 
     # 과목별 이벤트 저장
     course_events = {}
@@ -259,11 +300,15 @@ def get_events(driver, user, year=None, months=None):
         timestamp = calendar.timegm(start_date.timetuple())
         url = f"https://ecampus.smu.ac.kr/calendar/view.php?view=month&course=1&time={timestamp}"
         driver.get(url)
-        time.sleep(2)
 
-        soup = BeautifulSoup(driver.page_source, "lxml")
-        year_month = soup.select_one("h2.current").get_text().strip()
-        logger.debug(f"\n📅 {year_month} 이벤트")
+        try:
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "h2.current"))
+            )
+        except Exception as e:
+            logger.warning(f"📅 페이지 로딩 실패 ({month}월): {e}")
+            move_to_next_month(driver)
+            continue
 
         # 수업이 아닌 항목 제외
         first_semester_courses = get_all_first_semester_courses(driver, semester_name)
@@ -289,14 +334,19 @@ def get_events(driver, user, year=None, months=None):
                 course_events[subject_name] = []
 
             for date, event_list in events.items():
-                scheduled_date = datetime(year, month, int(date)).date()
-                logger.debug(f"\n📅 {scheduled_date}")
-                for event in event_list:
-                    logger.debug(f"  - {event}")
-                    # 중복 체크
-                    if not Schedule.objects.filter(
-                        user=user, scheduled_date=scheduled_date, title=event
-                    ).exists():
+                try:
+                    scheduled_date = datetime(year, month, int(date)).date()
+                    logger.debug(f"\n📅 {scheduled_date}")
+                    for event in event_list:
+                        logger.debug(f"  - {event}")
+                        # 중복 체크
+
+                        if Schedule.objects.filter(
+                            user=user, scheduled_date=scheduled_date, title=event
+                        ).exists():
+                            logger.debug(f"  중복 데이터 스킵: {event}")
+                            continue
+
                         data = {
                             "title": event,
                             "scheduled_date": scheduled_date,
@@ -309,19 +359,16 @@ def get_events(driver, user, year=None, months=None):
                             schedule = serializer.save()
                             # save_tags
                             schedule.tag.add(tag)
-                            logger.debug(f" ✅ 저장됨: {event}")
-                            course_events[subject_name].append(
+                            course_events.setdefault(subject_name, []).append(
                                 {
                                     "title": event,
                                     "scheduled_date": scheduled_date,
                                 }
                             )
-                        else:
-                            logger.warning(f"  저장 실패: {serializer.errors}")
-                    else:
-                        logger.debug(f"  중복 데이터 스킵: {event}")
-            if not events:
-                logger.debug("  (이벤트 없음)")
+                            logger.debug(f" ✅ 저장됨: {event}")
+
+                except Exception as e:
+                    logger.warning(f"❌ 이벤트 저장 실패: {e}")
 
         move_to_next_month(driver)
 

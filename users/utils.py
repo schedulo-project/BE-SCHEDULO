@@ -213,13 +213,19 @@ def save_to_timetable(self, user, courses_data):
 
 def get_all_first_semester_courses(driver, semester):
     """드롭다운에서 수강하는 강좌 가져오기"""
-    select_element = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located(
-            (By.CSS_SELECTOR, "select.select.autosubmit.cal_courses_flt")
+    try:
+        select_element = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, "select.select.autosubmit.cal_courses_flt")
+            )
         )
-    )
-    select = Select(select_element)
-    return [option.text for option in select.options if f"[{semester}]" in option.text]
+        select = Select(select_element)
+        return [
+            option.text for option in select.options if f"[{semester}]" in option.text
+        ]
+    except Exception as e:
+        logger.error("과목 드롭다운 로딩 실패: %s", e)
+        return []
 
 
 def get_events_for_course(driver, course_text):
@@ -231,6 +237,7 @@ def get_events_for_course(driver, course_text):
     )
     select = Select(select_element)
     select.select_by_visible_text(course_text)
+    time.sleep(0.5)
 
     soup = BeautifulSoup(driver.page_source, "lxml")
     date_elements = soup.select("div.day a")
@@ -249,20 +256,24 @@ def get_events_for_course(driver, course_text):
 
 
 def move_to_next_month(driver):
-    next_month_button = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.CSS_SELECTOR, "a.arrow_link.next"))
-    )
-    next_month_button.click()
-    time.sleep(1)
-    logger.debug("➡️ 다음 달로 이동했습니다.")
+    try:
+        next_month_button = WebDriverWait(driver, 5).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "a.arrow_link.next"))
+        )
+        next_month_button.click()
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "h2.current"))
+        )
+        logger.debug("➡️ 다음 달로 이동했습니다.")
+    except Exception as e:
+        logger.error("❌ 다음 달 이동 실패: %s", e)
 
 
 def get_events(driver, user, year=None, months=None):
     """학기 중 일정"""
-    if year is None:
-        year = datetime.now().year
-
-    current_month = datetime.now().month
+    now = datetime.now()
+    year = year or now.year
+    current_month = now.month
 
     # 학기 정의
     SEMESTER_1 = range(3, 7)  # 3월~6월 (1학기)
@@ -270,20 +281,16 @@ def get_events(driver, user, year=None, months=None):
 
     if months is None:
         if current_month in SEMESTER_1:
-            start_month = current_month
-            end_month = 6
+            months = list(range(current_month, 7))
             semester_name = "1학기"
         elif current_month in SEMESTER_2:
-            start_month = current_month
-            end_month = 12
+            months = list(range(current_month, 13))
             semester_name = "2학기"
         else:
             logger.debug(
                 f"📅 현재 {current_month}월은 학기 중이 아닙니다. (1학기: 3~6월, 2학기: 9~12월)"
             )
-            return
-
-        months = list(range(start_month, end_month + 1))
+            return {}
 
     # 과목별 이벤트 저장
     course_events = {}
@@ -293,11 +300,15 @@ def get_events(driver, user, year=None, months=None):
         timestamp = calendar.timegm(start_date.timetuple())
         url = f"https://ecampus.smu.ac.kr/calendar/view.php?view=month&course=1&time={timestamp}"
         driver.get(url)
-        time.sleep(2)
 
-        soup = BeautifulSoup(driver.page_source, "lxml")
-        year_month = soup.select_one("h2.current").get_text().strip()
-        logger.debug(f"\n📅 {year_month} 이벤트")
+        try:
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "h2.current"))
+            )
+        except Exception as e:
+            logger.warning(f"📅 페이지 로딩 실패 ({month}월): {e}")
+            move_to_next_month(driver)
+            continue
 
         # 수업이 아닌 항목 제외
         first_semester_courses = get_all_first_semester_courses(driver, semester_name)
@@ -323,14 +334,19 @@ def get_events(driver, user, year=None, months=None):
                 course_events[subject_name] = []
 
             for date, event_list in events.items():
-                scheduled_date = datetime(year, month, int(date)).date()
-                logger.debug(f"\n📅 {scheduled_date}")
-                for event in event_list:
-                    logger.debug(f"  - {event}")
-                    # 중복 체크
-                    if not Schedule.objects.filter(
-                        user=user, scheduled_date=scheduled_date, title=event
-                    ).exists():
+                try:
+                    scheduled_date = datetime(year, month, int(date)).date()
+                    logger.debug(f"\n📅 {scheduled_date}")
+                    for event in event_list:
+                        logger.debug(f"  - {event}")
+                        # 중복 체크
+
+                        if Schedule.objects.filter(
+                            user=user, scheduled_date=scheduled_date, title=event
+                        ).exists():
+                            logger.debug(f"  중복 데이터 스킵: {event}")
+                            continue
+
                         data = {
                             "title": event,
                             "scheduled_date": scheduled_date,
@@ -343,19 +359,16 @@ def get_events(driver, user, year=None, months=None):
                             schedule = serializer.save()
                             # save_tags
                             schedule.tag.add(tag)
-                            logger.debug(f" ✅ 저장됨: {event}")
-                            course_events[subject_name].append(
+                            course_events.setdefault(subject_name, []).append(
                                 {
                                     "title": event,
                                     "scheduled_date": scheduled_date,
                                 }
                             )
-                        else:
-                            logger.warning(f"  저장 실패: {serializer.errors}")
-                    else:
-                        logger.debug(f"  중복 데이터 스킵: {event}")
-            if not events:
-                logger.debug("  (이벤트 없음)")
+                            logger.debug(f" ✅ 저장됨: {event}")
+
+                except Exception as e:
+                    logger.warning(f"❌ 이벤트 저장 실패: {e}")
 
         move_to_next_month(driver)
 

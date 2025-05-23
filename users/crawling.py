@@ -40,6 +40,7 @@ logger = logging.getLogger("schedulo")  # myapp 로거를 사용
 def get_driver():
     options = Options()
     options.add_argument("--headless")  # Headless 모드 설정
+    options.add_argument("--lang=ko-KR")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-extensions")  # 확장 프로그램 비활성화

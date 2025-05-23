@@ -22,7 +22,7 @@ logger = logging.getLogger("schedulo")  # myapp 로거를 사용
 
 def login_attempt(driver, USER_ID, USER_PW):
     """ecampus 로그인 실행"""
-    driver.get("https://ecampus.smu.ac.kr/login.php")  # 로그인 페이지 URL
+    driver.get("https://ecampus.smu.ac.kr/login.php/?lang=ko")  # 로그인 페이지 URL
     # 아이디, 비밀번호 입력란 찾기
     username_input = WebDriverWait(driver, 2).until(
         EC.presence_of_element_located((By.NAME, "username"))

@@ -220,6 +220,10 @@ def get_all_first_semester_courses(driver, semester):
             )
         )
         select = Select(select_element)
+        logger.debug("📋 드롭다운 옵션들:")
+        for option in select.options:
+            logger.debug(f" - {option.text}")
+
         return [
             option.text for option in select.options if f"[{semester}]" in option.text
         ]

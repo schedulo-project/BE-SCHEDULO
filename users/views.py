@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from users.models import StudyRoutine, User
+from users.models import StudyRoutine, User, Score
 from users.serializers import StudyRoutineSerializer, UserSerializer
 from django.contrib.auth.hashers import check_password
 from rest_framework import generics, status
@@ -188,3 +188,64 @@ class StudyRoutineView(APIView):
         if serializer.is_valid():
             serializer.save(user=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+from datetime import date, timedelta
+
+
+# 유저 스코어 관련 view
+@api_view(["GET"])
+def get_user_score(request):
+    if request.user.is_authenticated:
+        # Mock data
+        if request.GET.get("mock"):
+            data = [
+                {"x": "03월 01일", "y": 100},
+                {"x": "03월 02일", "y": 90},
+                {"x": "03월 03일", "y": 95},
+                {"x": "03월 04일", "y": 110},
+                {"x": "03월 05일", "y": 110},
+                {"x": "03월 06일", "y": 115},
+                {"x": "03월 07일", "y": 120},
+            ]
+            return Response(
+                {"data": data, "highest": 178, "percentage": 32},
+                status=status.HTTP_200_OK,
+            )
+        user = request.user
+        scores = user.scores
+        iter = 0
+        data = []
+        if scores.exists():
+            # 반복 횟수 설정 (최대 7)
+            if scores.count() < 7:
+                iter = scores.count()
+            else:
+                iter = 7
+            # 반복 횟수만큼 데이터로 변환
+            for i in range(iter):
+                score = scores.filter(
+                    date=(date.today() - timedelta(days=iter - i - 1))
+                ).first()
+                data.append(
+                    {
+                        "x": score.date.strftime("%m월 %d일"),
+                        "y": score.score,
+                    }
+                )
+            return Response(
+                {
+                    "data": data,
+                    "highest": scores.first().highest,
+                    "percentage": scores.first().percentage,
+                },
+                status=status.HTTP_200_OK,
+            )
+        # 스코어가 없는 경우 (e.g. 오늘 가입)
+        else:
+            data.append({"x": date.today().strftime("%m월 %d일"), "y": 100})
+            return Response(
+                {"data": data, "highest": 100, "percentage": 100.0},
+                status=status.HTTP_200_OK,
+            )
+    return Response(status=status.HTTP_401_UNAUTHORIZED)

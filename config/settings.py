@@ -143,6 +143,20 @@ DATABASES = {
 }
 
 
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    "score-api": {
+        "task": "users.tasks.update_user_score",
+        "schedule": crontab(hour=0, minute=30),  # 매일 00시 30분에 실행
+    },
+}
+
+# Celery Broker Settings
+CELERY_BROKER_URL = "redis://127.0.0.1:6379"
+CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379"
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 

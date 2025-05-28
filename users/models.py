@@ -50,3 +50,11 @@ class StudyRoutine(models.Model):
     user = models.ForeignKey(
         User, null=True, on_delete=models.CASCADE, related_name="study_routine"
     )
+
+
+class Score(models.Model):
+    score = models.IntegerField()
+    date = models.DateField(auto_created=False)
+    highest = models.IntegerField(default=100)
+    percentage = models.FloatField(default=100.0)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="scores")

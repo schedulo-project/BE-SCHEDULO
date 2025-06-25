@@ -3,13 +3,13 @@ from django.db import models
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
-from config import settings
+from config.settings import base
 from users.managers import CustomUserManager
 from django.utils.translation import gettext_lazy as _
 
 from cryptography.fernet import Fernet
 
-cipher_suite = Fernet(settings.ENCRYPTION_KEY.encode())
+cipher_suite = Fernet(base.ENCRYPTION_KEY.encode())
 
 
 class User(AbstractUser):

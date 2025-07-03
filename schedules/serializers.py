@@ -6,7 +6,10 @@ from schedules.models import Tag, Schedule, TimeTable
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
-        fields = ["id", "name"]
+        fields = ["id", "name", "color"]
+        extra_kwargs = {
+            "color": {"required": False},
+        }
 
 
 class ScheduleSerializer(serializers.ModelSerializer):

@@ -8,6 +8,7 @@ class Tag(models.Model):
     user = models.ForeignKey(
         User, null=True, on_delete=models.CASCADE, related_name="tag"
     )
+    color = models.CharField(null=True, max_length=10)
 
 
 class Schedule(models.Model):

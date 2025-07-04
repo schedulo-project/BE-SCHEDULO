@@ -12,13 +12,41 @@ from schedules.serializers import (
 )
 from users.models import User
 
+tag_colors = [
+    "#CFE6D6",
+    "#FFEDA4",
+    "#FDD0EB",
+    "#E0CFE6",
+    "#BDC49E",
+    "#F7D5AB",
+    "#C3E1FF",
+    "#D9D4C1",
+    "#F5CDCD",
+]
+
 
 # Tag 조회, 생성
 class TagListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = TagSerializer
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if Tag.objects.filter(
+            name=request.data.get("name"), user=request.user
+        ).exists():
+            return Response(status=status.HTTP_200_OK)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            serializer.data, status=status.HTTP_201_CREATED, headers=headers
+        )
+
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        order = Tag.objects.filter(user=self.request.user).count()
+        serializer.save(
+            user=self.request.user, color=tag_colors[order % len(tag_colors)]
+        )
 
     def get_queryset(self):
         return Tag.objects.filter(user=self.request.user)

@@ -237,7 +237,7 @@ LOGGING = {
         "file": {
             "level": "DEBUG",
             "encoding": "utf-8",
-            "filters": ["require_debug_true"],
+            "filters": ["require_debug_false"],
             "class": "logging.handlers.RotatingFileHandler",
             "filename": BASE_DIR / "logs/django.log",
             "maxBytes": 1024 * 1024 * 5,  # 로그 크기 제한: 5 MB

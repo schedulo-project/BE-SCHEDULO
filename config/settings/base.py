@@ -244,6 +244,12 @@ LOGGING = {
             "backupCount": 5,
             "formatter": "standard",
         },
+        "error_file": {
+            "level": "ERROR",
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "logs/django.log",
+            "formatter": "standard",
+        },
     },
     "loggers": {
         # Django 기본 로깅 설정
@@ -257,6 +263,12 @@ LOGGING = {
             "handlers": ["django.server"],
             "level": "INFO",
             "propagate": False,  # 상위 로거로 전파 X
+        },
+        # Django Request 로깅
+        "django.request": {
+            "handlers": ["error_file"],
+            "level": "ERROR",
+            "propagate": False,
         },
         # 사용자 정의 로깅
         "schedulo": {

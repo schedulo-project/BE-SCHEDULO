@@ -146,7 +146,18 @@ CELERY_BEAT_SCHEDULE = {
         "task": "users.tasks.update_user_score",
         "schedule": crontab(hour=0, minute=30),  # 매일 00시 30분에 실행
     },
+    "notify_today_schedule_morning": {
+        "task": "notifications.tasks.notify_today_schedule",
+        "schedule": crontab(hour=10, minute=0),  # 매일 10시 00분에 실행
+        "args": ("📅 오늘의 일정입니다 :)",),
+    },
+    "notify_today_schedule_night": {
+        "task": "notifications.tasks.notify_today_schedule",
+        "schedule": crontab(hour=20, minute=0),  # 매일 20시 00분에 실행
+        "args": ("📅 오늘 남은 일정을 확인하세요!",),
+    },
 }
+
 
 # Celery Broker Settings
 CELERY_BROKER_URL = "redis://127.0.0.1:6379"

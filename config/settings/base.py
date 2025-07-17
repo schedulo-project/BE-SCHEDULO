@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "users",
     "schedules",
     "chatbots",
+    "notifications",
 ]
 
 REST_FRAMEWORK = {
@@ -132,6 +133,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+STATIC_URL = "/static/"
+
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, "static"),  # 정적 파일 경로 설정
+]
 
 from celery.schedules import crontab
 

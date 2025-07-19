@@ -43,6 +43,8 @@ class User(AbstractUser):
     def __str__(self):
         return self.email
 
+    fcm_token = models.TextField(null=True, blank=True)
+
 
 class StudyRoutine(models.Model):
     weeks_before_exam = models.IntegerField(null=True)

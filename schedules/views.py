@@ -165,6 +165,10 @@ class ScheduleRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView
                 tag_instance, created = Tag.objects.get_or_create(
                     name=tag_name, user=request.user
                 )
+                if created:
+                    order = Tag.objects.filter(user=self.request.user).count()
+                    tag_instance.color = tag_colors[order % len(tag_colors)]
+                    tag_instance.save()
                 tag_instances.append(tag_instance)
             schedule.tag.set(tag_instances)
 

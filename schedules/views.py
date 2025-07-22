@@ -81,6 +81,10 @@ class ScheduleCreateAPIView(generics.CreateAPIView):
                 tag_instance, created = Tag.objects.get_or_create(
                     name=tag_name, user=request.user
                 )
+                if created:
+                    order = Tag.objects.filter(user=self.request.user).count()
+                    tag_instance.color = tag_colors[order % len(tag_colors)]
+                    tag_instance.save()
                 tag_instances.append(tag_instance)
             schedule.tag.set(tag_instances)
 
@@ -133,7 +137,13 @@ def schedules_list_api_view(request):
         schedules = schedules.filter(tag__name=tag)
 
     serializer = GroupedScheduleSerializer(schedules)
-    return Response(serializer.data)
+    delayed_schedules = schedules.filter(
+        scheduled_date__lt=datetime.now().date(), is_completed=False
+    )
+    delayed_serializer = ScheduleSerializer(delayed_schedules, many=True)
+    data = serializer.data
+    data["delayed_schedules"] = delayed_serializer.data
+    return Response(data)
 
 
 # Schedule 단일 조회, 수정, 삭제

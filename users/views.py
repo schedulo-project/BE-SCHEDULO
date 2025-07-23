@@ -69,6 +69,41 @@ def check_duplicate(request):
     )
 
 
+# 비밀번호 확인
+class PasswordCheckView(APIView):
+    def post(self, request):
+        password = request.data.get("current_password")
+        if not check_password(password, request.user.password):
+            return Response(
+                {"message": "잘못된 비밀번호입니다."}, status=status.HTTP_404_NOT_FOUND
+            )
+        else:
+            return Response(
+                {"message": "올바른 비밀번호입니다."}, status=status.HTTP_200_OK
+            )
+
+
+# 비밀번호 변경
+class PasswordUpdateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        new_password = request.data.get("new_password")
+        user = request.user
+
+        if check_password(new_password, user.password):
+            return Response(
+                {"message": "이전 비밀번호는 사용할 수 없습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        else:
+            user.set_password(new_password)
+            user.save()
+            return Response(
+                {"message": "비밀번호가 변경되었습니다."}, status=status.HTTP_200_OK
+            )
+
+
 # 비밀번호 찾기
 class PasswordFindEmailView(APIView):
     permission_classes = [AllowAny]

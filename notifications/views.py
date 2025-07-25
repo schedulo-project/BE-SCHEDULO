@@ -27,7 +27,7 @@ from firebase_admin import messaging
 
 class FCMTestView(APIView):
     def post(self, request):
-        fcm_token = request.data.get("fcm_token")
+        fcm_token = request.user.fcm_token
         title = request.data.get("title", "test alert")
         body = request.data.get("body", "푸시알림 테스트")
 

@@ -10,6 +10,8 @@ urlpatterns = [
     path("signup/", views.UserCreateView.as_view(), name="signup"),
     path("checkduplicate/", views.check_duplicate, name="check-duplicate"),
     # path("passwordreset/", views.PasswordResetView.as_view(), name="password-reset"),
+    path("pw/check/", views.PasswordCheckView.as_view(), name="password-check"),
+    path("pw/update/", views.PasswordUpdateView.as_view(), name="password-update"),
     path("passwordfind/", views.PasswordFindEmailView.as_view(), name="password-find"),
     path("login/", views.jwt_login_view, name="jwt-login"),
     ### study routine ###

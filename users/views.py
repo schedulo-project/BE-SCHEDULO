@@ -2,7 +2,7 @@ import logging
 from django.shortcuts import render
 from users.models import StudyRoutine, User, Score
 from users.serializers import (
-    SeasonTokenObtainPairSerializer,
+    JWTLoginSerializer,
     StudyRoutineSerializer,
     UserSerializer,
     UserSmulUpdateSerializer,
@@ -181,34 +181,25 @@ class PasswordFindEmailView(APIView):
         )
 
 
-# 로그인
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def jwt_login_view(request):
-    email = request.data.get("email")
-    password = request.data.get("password")
-    if not User.objects.filter(email=email).exists():
-        return Response(
-            {"message": "존재하지 않는 계정입니다."}, status=status.HTTP_400_BAD_REQUEST
+# JWT 토큰 발급(로그인)
+class SimpleJWTLoginView(TokenObtainPairView):
+    serializer_class = JWTLoginSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        response = Response(
+            {
+                "access": serializer.validated_data["access"],
+                "refresh": serializer.validated_data["refresh"],
+                "user": {
+                    "id": serializer.validated_data["id"],
+                    "email": serializer.validated_data["email"],
+                },
+            },
+            status=status.HTTP_200_OK,
         )
-    user = User.objects.get(email=email)
-    if not check_password(password, user.password):
-        return Response(
-            {"message": "비밀번호가 옳지 않습니다."},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
-    token = RefreshToken.for_user(user)
-    access_token = str(token.access_token)
-    refresh_token = str(token)
-    serializer = UserSerializer(user)
-    return Response(
-        status=status.HTTP_200_OK,
-        data={
-            "access": access_token,
-            "refresh": refresh_token,
-            "user": serializer.data,
-        },
-    )
+        return response
 
 
 # StudyRoutine 관련 view

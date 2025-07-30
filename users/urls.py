@@ -13,7 +13,8 @@ urlpatterns = [
     path("pw/check/", views.PasswordCheckView.as_view(), name="password-check"),
     path("pw/update/", views.PasswordUpdateView.as_view(), name="password-update"),
     path("passwordfind/", views.PasswordFindEmailView.as_view(), name="password-find"),
-    path("login/", views.jwt_login_view, name="jwt-login"),
+    ### jwt login ###
+    path("login/", views.JWTLoginView.as_view(), name="jwt-login"),
     ### study routine ###
     path("studyroutine/", views.StudyRoutineView.as_view(), name="study"),
     ### crawling ###

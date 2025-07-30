@@ -17,7 +17,6 @@ from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.crypto import get_random_string
 from django.core.mail import EmailMessage
-from rest_framework_simplejwt.views import TokenObtainPairView
 
 
 # User 관련 view
@@ -191,10 +190,10 @@ class PasswordFindEmailView(APIView):
 
 
 # JWT 토큰 발급(로그인)
-class SimpleJWTLoginView(TokenObtainPairView):
+class JWTLoginView(APIView):
     serializer_class = JWTLoginSerializer
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         response = Response(

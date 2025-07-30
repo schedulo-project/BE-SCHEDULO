@@ -36,6 +36,7 @@ class UserDetailView(generics.RetrieveDestroyAPIView):
 
 # 회원가입
 class UserCreateView(generics.CreateAPIView):
+    permission_classes = [AllowAny]
     serializer_class = UserSerializer
     queryset = User.objects.all()
 
@@ -43,11 +44,19 @@ class UserCreateView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        logger.info(f"가입된 사용자 정보: {user.email}")
+
+        refresh = RefreshToken.for_user(user)
         return Response(
             {
-                "email": user.email,
-                "student_id": user.student_id if user.student_id else None,
-                "message": "회원가입이 성공적으로 완료되었습니다.",
+                "message": "회원가입이 완료되었습니다.",
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "student_id": user.student_id if user.student_id else None,
+                },
             },
             status=status.HTTP_201_CREATED,
         )

@@ -1,6 +1,12 @@
+import logging
 from django.shortcuts import render
 from users.models import StudyRoutine, User, Score
-from users.serializers import StudyRoutineSerializer, UserSerializer
+from users.serializers import (
+    SeasonTokenObtainPairSerializer,
+    StudyRoutineSerializer,
+    UserSerializer,
+    UserSmulUpdateSerializer,
+)
 from django.contrib.auth.hashers import check_password
 from rest_framework import generics, status
 from rest_framework.views import APIView
@@ -11,9 +17,11 @@ from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.crypto import get_random_string
 from django.core.mail import EmailMessage
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 
 # User 관련 view
+logger = logging.getLogger("schedulo")
 
 
 # 조회, 탈퇴

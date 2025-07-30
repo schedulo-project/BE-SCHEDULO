@@ -61,6 +61,28 @@ class UserCreateView(generics.CreateAPIView):
         )
 
 
+# 이캠 정보 수정
+class SmulPasswordUpdateView(generics.UpdateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UserSmulUpdateSerializer
+
+    def get_object(self):
+        return self.request.user
+
+    def update(self, request, *args, **kwargs):
+        user = self.get_object()
+        serializer = self.get_serializer(user, data=request.data, partial=False)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        return Response(
+            {
+                "message": " 샘물 로그인 정보가 수정되었습니다.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 # 중복 확인(이메일, 아이디)
 @api_view(["POST"])
 @permission_classes([AllowAny])

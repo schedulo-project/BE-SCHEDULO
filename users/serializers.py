@@ -23,6 +23,23 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 
+class UserSmulUpdateSerializer(serializers.ModelSerializer):
+    student_id = serializers.IntegerField(required=True)
+    student_password = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = User
+        fields = ["student_id", "student_password"]
+
+    def update(self, instance, validated_data):
+        if "student_id" in validated_data:
+            instance.student_id = validated_data["student_id"]
+        if "student_password" in validated_data:
+            instance.set_student_password(validated_data["student_password"])
+        instance.save()
+        return instance
+
+
 class JWTLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)

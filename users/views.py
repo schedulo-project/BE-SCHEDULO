@@ -1,6 +1,12 @@
+import logging
 from django.shortcuts import render
 from users.models import StudyRoutine, User, Score
-from users.serializers import StudyRoutineSerializer, UserSerializer
+from users.serializers import (
+    JWTLoginSerializer,
+    StudyRoutineSerializer,
+    UserSerializer,
+    UserSmulUpdateSerializer,
+)
 from django.contrib.auth.hashers import check_password
 from rest_framework import generics, status
 from rest_framework.views import APIView
@@ -14,6 +20,7 @@ from django.core.mail import EmailMessage
 
 
 # User 관련 view
+logger = logging.getLogger("schedulo")
 
 
 # 조회, 탈퇴
@@ -28,6 +35,7 @@ class UserDetailView(generics.RetrieveDestroyAPIView):
 
 # 회원가입
 class UserCreateView(generics.CreateAPIView):
+    permission_classes = [AllowAny]
     serializer_class = UserSerializer
     queryset = User.objects.all()
 
@@ -35,13 +43,43 @@ class UserCreateView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        logger.info(f"가입된 사용자 정보: {user.email}")
+
+        refresh = RefreshToken.for_user(user)
         return Response(
             {
-                "email": user.email,
-                "student_id": user.student_id if user.student_id else None,
-                "message": "회원가입이 성공적으로 완료되었습니다.",
+                "message": "회원가입이 완료되었습니다.",
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "student_id": user.student_id if user.student_id else None,
+                },
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+# 이캠 정보 수정
+class SmulPasswordUpdateView(generics.UpdateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UserSmulUpdateSerializer
+
+    def get_object(self):
+        return self.request.user
+
+    def update(self, request, *args, **kwargs):
+        user = self.get_object()
+        serializer = self.get_serializer(user, data=request.data, partial=False)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        return Response(
+            {
+                "message": " 샘물 로그인 정보가 수정되었습니다.",
+            },
+            status=status.HTTP_200_OK,
         )
 
 
@@ -173,34 +211,25 @@ class PasswordFindEmailView(APIView):
         )
 
 
-# 로그인
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def jwt_login_view(request):
-    email = request.data.get("email")
-    password = request.data.get("password")
-    if not User.objects.filter(email=email).exists():
-        return Response(
-            {"message": "존재하지 않는 계정입니다."}, status=status.HTTP_400_BAD_REQUEST
+# JWT 토큰 발급(로그인)
+class JWTLoginView(APIView):
+    serializer_class = JWTLoginSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        response = Response(
+            {
+                "access": serializer.validated_data["access"],
+                "refresh": serializer.validated_data["refresh"],
+                "user": {
+                    "id": serializer.validated_data["id"],
+                    "email": serializer.validated_data["email"],
+                },
+            },
+            status=status.HTTP_200_OK,
         )
-    user = User.objects.get(email=email)
-    if not check_password(password, user.password):
-        return Response(
-            {"message": "비밀번호가 옳지 않습니다."},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
-    token = RefreshToken.for_user(user)
-    access_token = str(token.access_token)
-    refresh_token = str(token)
-    serializer = UserSerializer(user)
-    return Response(
-        status=status.HTTP_200_OK,
-        data={
-            "access": access_token,
-            "refresh": refresh_token,
-            "user": serializer.data,
-        },
-    )
+        return response
 
 
 # StudyRoutine 관련 view

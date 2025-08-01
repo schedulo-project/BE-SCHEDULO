@@ -10,6 +10,7 @@ from users.serializers import (
 from django.contrib.auth.hashers import check_password
 from rest_framework import generics, status
 from rest_framework.views import APIView
+from rest_framework.generics import GenericAPIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import permissions
@@ -212,7 +213,7 @@ class PasswordFindEmailView(APIView):
 
 
 # JWT 토큰 발급(로그인)
-class JWTLoginView(APIView):
+class JWTLoginView(GenericAPIView):
     serializer_class = JWTLoginSerializer
 
     def post(self, request):

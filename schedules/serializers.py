@@ -15,7 +15,11 @@ class TagSerializer(serializers.ModelSerializer):
 class ScheduleListSerializer(serializers.ListSerializer):
     def create(self, validated_data):
         user = self.context["request"].user
-        schedules = [Schedule(**item, user=user) for item in validated_data]
+        schedules = []
+        for item in validated_data:
+            item.pop("tag", None)
+            schedules.append(Schedule(**item, user=user))
+
         return Schedule.objects.bulk_create(schedules)
 
 

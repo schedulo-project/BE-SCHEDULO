@@ -12,6 +12,13 @@ class TagSerializer(serializers.ModelSerializer):
         }
 
 
+class ScheduleListSerializer(serializers.ListSerializer):
+    def create(self, validated_data):
+        user = self.context["request"].user
+        schedules = [Schedule(**item, user=user) for item in validated_data]
+        return Schedule.objects.bulk_create(schedules)
+
+
 class ScheduleSerializer(serializers.ModelSerializer):
     tag = serializers.SerializerMethodField()
 
@@ -25,6 +32,7 @@ class ScheduleSerializer(serializers.ModelSerializer):
             "is_completed": {"required": False},
             "tag": {"read_only": True},
         }
+        list_serializer_class = ScheduleListSerializer
 
     def get_tag(self, obj):
         tags = obj.tag.all()

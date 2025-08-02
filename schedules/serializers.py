@@ -15,11 +15,7 @@ class TagSerializer(serializers.ModelSerializer):
 class ScheduleListSerializer(serializers.ListSerializer):
     def create(self, validated_data):
         user = self.context["request"].user
-        schedules = []
-        for item in validated_data:
-            item.pop("tag", None)
-            schedules.append(Schedule(**item, user=user))
-
+        schedules = [Schedule(**item, user=user) for item in validated_data]
         return Schedule.objects.bulk_create(schedules)
 
 
@@ -39,6 +35,8 @@ class ScheduleSerializer(serializers.ModelSerializer):
         list_serializer_class = ScheduleListSerializer
 
     def get_tag(self, obj):
+        if obj.pk is None:
+            return []
         tags = obj.tag.all()
         return TagSerializer(tags, many=True).data
 

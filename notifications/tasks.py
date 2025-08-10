@@ -20,9 +20,9 @@ def notify_today_schedule(content_title):
         .distinct()
     )
 
-    users = User.objects.filter(id__in=users_ids, fcm_token__isnull=False).exclude(
-        fcm_token=""
-    )
+    users = User.objects.filter(
+        id__in=users_ids, notify_today_schedule=True, fcm_token__isnull=False
+    ).exclude(fcm_token="")
 
     for user in users:
         schedules = Schedule.objects.filter(
@@ -67,7 +67,9 @@ def notify_deadline_schedule():
 def _notify_deadline_by_day(deadline, message_body):
     schedules = Schedule.objects.filter(deadline=deadline, is_completed=False)
     user_ids = schedules.values_list("user_id", flat=True).distinct()
-    users = User.objects.exclude(fcm_token__isnull=True).filter(id__in=user_ids)
+    users = User.objects.filter(
+        id__in=user_ids, notify_deadline_schedule=True, fcm_token__isnull=False
+    ).exclude(fcm_token="")
     for user in users:
         user_schedules = schedules.filter(user=user)
         if not user_schedules.exists():

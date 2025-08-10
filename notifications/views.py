@@ -2,6 +2,11 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
 
+from notifications.serializers import NotificationSettingSerializer
+from rest_framework import generics, permissions
+
+from users.models import User
+
 
 @api_view(["POST"])
 def update_fcm_token(request):
@@ -58,3 +63,12 @@ class FCMTestView(APIView):
                 {"message": "푸시 알림 전송 실패", "error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class NotificationSettingsUpdateView(generics.UpdateAPIView):
+    serializer_class = NotificationSettingSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = User.objects.all()
+
+    def get_object(self):
+        return self.request.user

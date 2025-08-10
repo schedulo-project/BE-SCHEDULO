@@ -44,6 +44,8 @@ class User(AbstractUser):
         return self.email
 
     fcm_token = models.TextField(null=True, blank=True)
+    notify_today_schedule = models.BooleanField(default=True)
+    notify_deadline_schedule = models.BooleanField(default=True)
 
 
 class StudyRoutine(models.Model):

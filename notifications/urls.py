@@ -11,4 +11,6 @@ urlpatterns = [
         NotificationSettingsUpdateView.as_view(),
         name="notification-setting",
     ),
+    path("subscribe/", SubscribeView.as_view(), name="webpush-subscribe"),
+    path("unsubscribe/", UnsubscribeView.as_view(), name="webpush-unsubscribe"),
 ]

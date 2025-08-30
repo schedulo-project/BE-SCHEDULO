@@ -6,3 +6,5 @@ class NotificationSettingSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["notify_today_schedule", "notify_deadline_schedule"]
+
+

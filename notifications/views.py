@@ -1,14 +1,17 @@
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
-from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework import status, permissions
 
-from notifications.serializers import NotificationSettingSerializer
+from notifications.serializers import (
+    NotificationSettingSerializer,
+)
 from rest_framework import generics, permissions
 
 from users.models import User
 
 
 @api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
 def update_fcm_token(request):
     fcm_token = request.data.get("fcm_token")
 
@@ -21,6 +24,10 @@ def update_fcm_token(request):
     if user.fcm_token != fcm_token:
         user.fcm_token = fcm_token
         user.save(update_fields=["fcm_token"])
+        print(f"FCM 토큰 업데이트 완료: 사용자 {user.email}, 토큰: {fcm_token[:20]}...")
+    else:
+        print(f"FCM 토큰이 이미 동일합니다: 사용자 {user.email}")
+
     return Response(
         {"message": "FCM token updated successfully"}, status=status.HTTP_200_OK
     )
@@ -31,6 +38,8 @@ from firebase_admin import messaging
 
 
 class FCMTestView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
     def post(self, request):
         fcm_token = request.user.fcm_token
         title = request.data.get("title", "test alert")
@@ -65,7 +74,7 @@ class FCMTestView(APIView):
             )
 
 
-class NotificationSettingsUpdateView(generics.UpdateAPIView):
+class NotificationSettingsView(generics.RetrieveUpdateAPIView):
     serializer_class = NotificationSettingSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = User.objects.all()

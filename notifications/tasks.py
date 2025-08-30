@@ -3,54 +3,52 @@ from celery import shared_task
 from firebase_admin import messaging
 from django.contrib.auth import get_user_model
 
+from notifications.utils import send_multi_channel
 from schedules.models import Schedule
+from collections import defaultdict
 
 User = get_user_model()
 
 
+def _build_body(titles, max_lines=10, max_chars=900):
+    lines = titles[:max_lines]
+    body = "\n".join(f"☐ {t}" for t in lines)
+    if len(titles) > max_lines:
+        body += f"\n…외 {len(titles) - max_lines}건"
+    if len(body) > max_chars:
+        body = body[: max_chars - 1] + "…"
+    return body
+
+
 @shared_task
 def notify_today_schedule(content_title):
-    now = timezone.localtime()
+    today = timezone.localdate()
     print(f"📢 [Celery] 오늘의 일정 알림 작업 시작됨 {content_title}")
-    today = now.date()
 
-    users_ids = (
+    rows = (
         Schedule.objects.filter(scheduled_date=today, is_completed=False)
-        .values_list("user_id", flat=True)
+        .values_list("user_id", "title")
         .distinct()
     )
+    if not rows:
+        print("ℹ️ 오늘 보낼 일정 없음")
+        return
+
+    titles_by_user = defaultdict(list)
+    for r in rows:
+        # Access the user_id and title using their tuple indices
+        user_id = r[0]
+        title = r[1]
+        titles_by_user[user_id].append(title)
 
     users = User.objects.filter(
-        id__in=users_ids, notify_today_schedule=True, fcm_token__isnull=False
-    ).exclude(fcm_token="")
+        id__in=titles_by_user.keys(), notify_today_schedule=True
+    )
 
-    for user in users:
-        schedules = Schedule.objects.filter(
-            user=user, scheduled_date=today, is_completed=False
-        )
-
-        if not schedules.exists():
-            continue
-
-        schedule_titles = [f"☐ {s.title}" for s in schedules]
-
-        body_text = "\n".join(schedule_titles)
-
-        message = messaging.Message(
-            data={
-                "content_title": content_title,
-                "body": body_text,
-            },
-            token=user.fcm_token,
-        )
-        try:
-            response = messaging.send(message)
-            print(f"✅ {user.email} 알림 전송 완료: {response}")
-        except Exception as e:
-            print(f"❌ {user.email} 전송 실패: {e}")
-            if "Requested entity was not found" in str(e):
-                user.fcm_token = None
-                user.save(update_fields=["fcm_token"])
+    for user in users.iterator():
+        body_text = _build_body(titles_by_user[user.id])
+        send_multi_channel(user, content_title, body_text)
+        print(f"Sending notification to user {user.id} with body: {body_text}")
 
 
 @shared_task
@@ -65,27 +63,22 @@ def notify_deadline_schedule():
 
 
 def _notify_deadline_by_day(deadline, message_body):
-    schedules = Schedule.objects.filter(deadline=deadline, is_completed=False)
-    user_ids = schedules.values_list("user_id", flat=True).distinct()
-    users = User.objects.filter(
-        id__in=user_ids, notify_deadline_schedule=True, fcm_token__isnull=False
-    ).exclude(fcm_token="")
-    for user in users:
-        user_schedules = schedules.filter(user=user)
-        if not user_schedules.exists():
-            continue
-        schedule_titles = [f"☐ {s.title}" for s in user_schedules]
-        body_text = " \n".join(schedule_titles)
+    rows = Schedule.objects.filter(deadline=deadline, is_completed=False).values(
+        "user_id", "title"
+    )
+    if not rows:
+        print(f"ℹ️ {deadline} 기준 보낼 마감 없음")
+        return
 
-        message = messaging.Message(
-            data={
-                "content_title": message_body,
-                "body": body_text,
-            },
-            token=user.fcm_token,
-        )
-        try:
-            response = messaging.send(message)
-            print(f"✅ {user.email} 알림 전송 완료: {response}")
-        except Exception as e:
-            print(f"❌ {user.email} 전송 실패: {e}")
+    titles_by_user = defaultdict(list)
+    for r in rows:
+        titles_by_user[r["user_id"]].append(r["title"])
+
+    users = User.objects.filter(
+        id__in=titles_by_user.keys(),
+        notify_deadline_schedule=True,
+    )
+
+    for user in users.iterator():
+        body_text = _build_body(titles_by_user[user.id])
+        send_multi_channel(user, message_body, body_text)

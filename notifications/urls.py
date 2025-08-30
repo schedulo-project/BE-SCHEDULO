@@ -8,7 +8,7 @@ urlpatterns = [
     path("fcm-test/", FCMTestView.as_view(), name="fcm-test"),
     path(
         "noti-setting/",
-        NotificationSettingsUpdateView.as_view(),
+        NotificationSettingsView.as_view(),
         name="notification-setting",
-    ),
+    ),   
 ]

@@ -143,8 +143,8 @@ from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
     "score-api": {
-        "task": "users.tasks.update_user_score",
-        "schedule": crontab(hour=0, minute=30),  # 매일 00시 30분에 실행
+        "task": "users.tasks.calculate_score",
+        "schedule": crontab(hour=23, minute=00),  # 매일 23시 00분에 실행
     },
     "notify_today_schedule_morning": {
         "task": "notifications.tasks.notify_today_schedule",

@@ -9,7 +9,6 @@ from notifications.serializers import (
 )
 from rest_framework import generics, permissions
 
-from notifications.utils import send_multi_channel
 from users.models import User
 
 
@@ -38,19 +37,6 @@ def update_fcm_token(request):
 
 from rest_framework.views import APIView
 from firebase_admin import messaging
-
-
-class PushTestView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        title = request.data.get("title", "테스트")
-        body = request.data.get("body", "푸시알림 테스트")
-        try:
-            send_multi_channel(request.user, title, body, url="/")
-            return Response({"message": "전송 시도 완료"}, status=200)
-        except Exception as e:
-            return Response({"message": "전송 실패", "error": str(e)}, status=500)
 
 
 class FCMTestView(APIView):

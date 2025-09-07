@@ -2,10 +2,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework import status, permissions
 
-from notifications.models import WebPushSubscription
 from notifications.serializers import (
     NotificationSettingSerializer,
-    SubscriptionSerializer,
 )
 from rest_framework import generics, permissions
 
@@ -76,28 +74,10 @@ class FCMTestView(APIView):
             )
 
 
-class NotificationSettingsUpdateView(generics.UpdateAPIView):
+class NotificationSettingsView(generics.RetrieveUpdateAPIView):
     serializer_class = NotificationSettingSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = User.objects.all()
 
     def get_object(self):
         return self.request.user
-
-
-class SubscribeView(generics.CreateAPIView):
-    permission_classes = [permissions.AllowAny]  # 로그인 매핑 원하면 IsAuthenticated
-    serializer_class = SubscriptionSerializer
-
-
-class UnsubscribeView(generics.GenericAPIView):
-    permission_classes = [permissions.AllowAny]
-
-    def delete(self, request, *args, **kwargs):
-        endpoint = request.data.get("endpoint") or request.query_params.get("endpoint")
-        if not endpoint:
-            return Response(
-                {"detail": "endpoint required"}, status=status.HTTP_400_BAD_REQUEST
-            )
-        WebPushSubscription.objects.filter(endpoint=endpoint).delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)

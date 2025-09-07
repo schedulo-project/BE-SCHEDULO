@@ -8,9 +8,7 @@ urlpatterns = [
     path("fcm-test/", FCMTestView.as_view(), name="fcm-test"),
     path(
         "noti-setting/",
-        NotificationSettingsUpdateView.as_view(),
+        NotificationSettingsView.as_view(),
         name="notification-setting",
-    ),
-    path("subscribe/", SubscribeView.as_view(), name="webpush-subscribe"),
-    path("unsubscribe/", UnsubscribeView.as_view(), name="webpush-unsubscribe"),
+    ),   
 ]

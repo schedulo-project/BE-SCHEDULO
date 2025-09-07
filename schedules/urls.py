@@ -18,3 +18,13 @@ urlpatterns = [
         views.TimeTableRetrieveUpdateDestroyAPIView.as_view(),
     ),
 ]
+
+from schedules import tasks
+
+urlpatterns += [
+    path(
+        "generateweeklyreviewschedules/",
+        tasks.generate_weekly_review_schedules_api_test,
+        name="generate-weekly-review-schedules",
+    ),
+]

@@ -142,9 +142,17 @@ STATICFILES_DIRS = [
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
+    "weekly_review_schedules_creation": {
+        "task": "schedules.tasks.generate_weekly_review_schedules",
+        "schedule": crontab(
+            hour=16,  # UTC 기준 (KST 01:00 = UTC 16:00)
+            minute=0,
+            day_of_week=6,  # 일요일 UTC → 월요일 KST
+        ),
+    },
     "score-api": {
-        "task": "users.tasks.update_user_score",
-        "schedule": crontab(hour=0, minute=30),  # 매일 00시 30분에 실행
+        "task": "users.tasks.calculate_score",
+        "schedule": crontab(hour=23, minute=00),  # 매일 23시 00분에 실행
     },
     "notify_today_schedule_morning": {
         "task": "notifications.tasks.notify_today_schedule",

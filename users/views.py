@@ -239,6 +239,13 @@ class JWTLoginView(GenericAPIView):
 class StudyRoutineView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    def get(self, request):
+        study_routine = StudyRoutine.objects.filter(user=request.user).first()
+        if study_routine:
+            serializer = StudyRoutineSerializer(study_routine)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     def post(self, request):
         if StudyRoutine.objects.filter(user=request.user).exists():
             study_routine = StudyRoutine.objects.get(user=request.user)

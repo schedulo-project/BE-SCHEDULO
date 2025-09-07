@@ -39,7 +39,7 @@ logger = logging.getLogger("schedulo")  # myapp 로거를 사용
 # chromedriver 설정 함수
 def get_driver():
     options = Options()
-    options.add_argument("--headless")  # Headless 모드 설정
+    # options.add_argument("--headless=new")  # Headless 모드 설정
     options.add_argument("--lang=ko-KR")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")

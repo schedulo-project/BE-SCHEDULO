@@ -154,6 +154,7 @@ CELERY_BEAT_SCHEDULE = {
     "notify_today_schedule_night": {
         "task": "notifications.tasks.notify_today_schedule",
         "schedule": crontab(hour=20, minute=0),  # 매일 20시 00분에 실행
+        # "schedule": crontab(minute="*/1"),  # test용으로 매 분마다 실행
         "args": ("📅 오늘 남은 일정을 확인하세요!",),
     },
     "notify_deadline_schedule": {

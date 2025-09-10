@@ -1,6 +1,8 @@
 from django.urls import path
 from users import views
 from users import crawling
+from rest_framework_simplejwt.views import TokenRefreshView
+
 
 app_name = "users"
 
@@ -16,6 +18,7 @@ urlpatterns = [
     path("smul-update/", views.SmulPasswordUpdateView.as_view(), name="smul-update"),
     ### jwt login ###
     path("login/", views.JWTLoginView.as_view(), name="jwt-login"),
+    path("refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     ### study routine ###
     path("studyroutine/", views.StudyRoutineView.as_view(), name="study"),
     ### crawling ###

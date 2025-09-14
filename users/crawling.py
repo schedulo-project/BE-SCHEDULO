@@ -29,29 +29,50 @@ from users.utils import (
     save_to_timetable,
 )
 
+import shutil
+
 # log test
 import logging
 
 # 로거 설정
 logger = logging.getLogger("schedulo")  # myapp 로거를 사용
 
+CHROMEDRIVER_PATH = "/usr/bin/chromedriver"
+
+from contextlib import contextmanager
+
 
 # chromedriver 설정 함수
+@contextmanager
 def get_driver():
-    options = Options()
-    # options.add_argument("--headless=new")  # Headless 모드 설정
-    options.add_argument("--lang=ko-KR")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-extensions")  # 확장 프로그램 비활성화
-    options.add_argument("--disable-gpu")  # GPU 가속 비활성화
+    tmpdir = tempfile.mkdtemp(prefix="chrome-profile-")  # 요청별 고유 디렉토리
+    driver = None
+    try:
+        options = Options()
+        options.add_argument("--headless=new")  # Headless 모드 설정
+        options.add_argument("--lang=ko-KR")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-extensions")  # 확장 프로그램 비활성화
+        options.add_argument("--disable-gpu")  # GPU 가속 비활성화
 
-    user_data_dir = tempfile.mkdtemp()
-    options.add_argument(f"--user-data-dir={user_data_dir}")
-    service = Service(executable_path=ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
-    driver.set_page_load_timeout(30)
-    return driver
+        #--user-data 중복 방지
+        options.add_argument(f"--user-data-dir={tmpdir}")
+        options.add_argument(f"--data-path={tmpdir}/data")
+        options.add_argument(f"--disk-cache-dir={tmpdir}/cache")
+        options.add_argument("--remote-debugging-port=0")
+
+        service = Service(executable_path=CHROMEDRIVER_PATH)
+        driver = webdriver.Chrome(service=service, options=options)
+        driver.set_page_load_timeout(30)
+        yield driver
+    finally:
+        try:
+            if driver is not None:
+                driver.quit()
+        except Exception:
+            pass
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 # 학번, 비밀번호 유효성 검사

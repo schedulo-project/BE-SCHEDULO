@@ -28,7 +28,8 @@ from users.utils import (
     login_attempt,
     save_to_timetable,
 )
-
+from users.timetable_tasks import crawl_timetable_task
+from celery.result import AsyncResult
 import shutil
 
 # log test
@@ -56,7 +57,7 @@ def get_driver():
         options.add_argument("--disable-extensions")  # 확장 프로그램 비활성화
         options.add_argument("--disable-gpu")  # GPU 가속 비활성화
 
-        #--user-data 중복 방지
+        # --user-data 중복 방지
         options.add_argument(f"--user-data-dir={tmpdir}")
         options.add_argument(f"--data-path={tmpdir}/data")
         options.add_argument(f"--disk-cache-dir={tmpdir}/cache")
@@ -81,76 +82,121 @@ class StudentInfoCheckView(APIView):
         student_id = request.data.get("student_id")
         student_password = request.data.get("student_password")
 
-        driver = get_driver()
-        try:
-            # ecampus login
-            login_attempt(driver, student_id, student_password)
-            if check_error(driver):
+        with get_driver() as driver:
+            try:
+                # ecampus login
+                login_attempt(driver, student_id, student_password)
+                if check_error(driver):
+                    return Response(
+                        {
+                            "message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
                 return Response(
-                    {"message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    {"message": "올바른 학번, 비밀번호 입니다."},
+                    status=status.HTTP_200_OK,
                 )
-            return Response(
-                {"message": "올바른 학번, 비밀번호 입니다."}, status=status.HTTP_200_OK
-            )
-        finally:
-            driver.quit()
+            except Exception as e:
+                logger.error(f"StudentInfoCheckView 오류: {e}")
+                return Response(
+                    {"message": "로그인 검증 중 오류가 발생했습니다."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
 
-##시간표 불러오기
+##시간표 불러오기 (비동기)
 class GetTimeTableView(APIView):
     def get(self, request):
-        student_id = self.request.user.student_id
-        student_password = self.request.user.get_student_password()
-
-        driver = get_driver()
         try:
-            # ecampus login
-            login_attempt(driver, student_id, student_password)
-            if check_error(driver):
-                return Response(
-                    {"message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            else:
-                logger.info("✅ 로그인 성공!")
+            # Celery 태스크 시작
+            task = crawl_timetable_task.delay(request.user.id)
 
-            # 과목 불러오기
-            courses = get_courses(driver)
-            if not courses:
-                return Response(
-                    {"message": "❌ 과목 정보를 찾을 수 없습니다."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            courses_data = []
-            logger.debug("\n📚 수강 중인 과목 목록:")
-            for course_title, course_id in courses:
-                # 시간표 데이터 조회
-                course_name, course_time, schedules = get_syllabus(driver, course_id)
-                display_name = (
-                    course_name if course_name != "정보 없음" else course_title
-                )
-
-                if course_time != "정보 없음":
-                    logger.debug(f"  - {display_name}")
-                    logger.debug(f"    🕒 강의시간: {course_time}")
-                    if schedules:
-                        # Explicitly append a 2-tuple
-                        courses_data.append((display_name, schedules))
-
-            # 시간표 저장
-            save_to_timetable(self, request.user, courses_data)
+            logger.info(
+                f"시간표 크롤링 태스크 시작 - 사용자: {request.user.username}, 태스크 ID: {task.id}"
+            )
 
             return Response(
                 {
-                    "message": "✅시간표 불러오기 및 저장 성공",
-                    "courses_data": courses_data,
+                    "message": "시간표 불러오기를 시작했습니다. 완료되면 알림을 받으실 수 있습니다.",
+                    "task_id": task.id,
+                    "status": "STARTED",
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_202_ACCEPTED,
             )
-        finally:
-            driver.quit()
+        except Exception as e:
+            logger.error(
+                f"시간표 크롤링 태스크 시작 실패 - 사용자: {request.user.username}, 오류: {e}"
+            )
+            return Response(
+                {"message": "시간표 불러오기 시작에 실패했습니다.", "error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+##시간표 크롤링 상태 확인
+class TimeTableTaskStatusView(APIView):
+    def get(self, request):
+        """
+        시간표 크롤링 태스크의 상태를 확인합니다.
+        """
+        task_id = request.GET.get("task_id")
+
+        if not task_id:
+            return Response(
+                {"message": "task_id가 필요합니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Celery 태스크 결과 조회
+            task_result = AsyncResult(task_id)
+
+            if task_result.state == "PENDING":
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": "대기 중...",
+                    "progress": 0,
+                }
+            elif task_result.state == "PROGRESS":
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": task_result.info.get("status", "진행 중..."),
+                    "progress": task_result.info.get("progress", 0),
+                }
+            elif task_result.state == "SUCCESS":
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": "완료",
+                    "progress": 100,
+                    "result": task_result.result,
+                }
+            elif task_result.state == "FAILURE":
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": "실패",
+                    "error": str(task_result.info),
+                }
+            else:
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": "알 수 없는 상태",
+                    "progress": 0,
+                }
+
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"태스크 상태 확인 실패 - 태스크 ID: {task_id}, 오류: {e}")
+            return Response(
+                {"message": "태스크 상태 확인에 실패했습니다.", "error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 # ecampus 일정 불러오기
@@ -159,31 +205,37 @@ class CrawlingView(APIView):
         student_id = self.request.user.student_id
         student_password = self.request.user.get_student_password()
 
-        driver = get_driver()
-        try:
-            # ecampus login
-            login_attempt(driver, student_id, student_password)
-            if check_error(driver):
-                return Response(
-                    {"message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            logger.info("✅ 로그인 성공")
+        with get_driver() as driver:
+            try:
+                # ecampus login
+                login_attempt(driver, student_id, student_password)
+                if check_error(driver):
+                    return Response(
+                        {
+                            "message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                logger.info("✅ 로그인 성공")
 
-            # 일정 불러오기
-            course_events = get_events(driver, request.user.id)
-            if not course_events:
-                return Response(
-                    {"message": "새로운 일정이 없습니다."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
+                # 일정 불러오기
+                course_events = get_events(driver, request.user.id)
+                if not course_events:
+                    return Response(
+                        {"message": "새로운 일정이 없습니다."},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
 
-            return Response(
-                {
-                    "message": "일정을 모두 불러왔습니다.",
-                    "courses": course_events,  # 중복 제외한 과목 정보 반환
-                },
-                status=status.HTTP_200_OK,
-            )
-        finally:
-            driver.quit()
+                return Response(
+                    {
+                        "message": "일정을 모두 불러왔습니다.",
+                        "courses": course_events,  # 중복 제외한 과목 정보 반환
+                    },
+                    status=status.HTTP_200_OK,
+                )
+            except Exception as e:
+                logger.error(f"CrawlingView 오류: {e}")
+                return Response(
+                    {"message": "일정 불러오기 중 오류가 발생했습니다."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )

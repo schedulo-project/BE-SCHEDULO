@@ -20,3 +20,6 @@ DATABASES = {
         },
     }
 }
+
+# Celery Beat 스케줄 파일 경로 수정 (프로덕션용)
+CELERY_BEAT_SCHEDULE_FILENAME = "/home/ubuntu/BE-MVP/data/celerybeat-schedule"

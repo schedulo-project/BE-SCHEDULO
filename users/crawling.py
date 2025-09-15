@@ -38,10 +38,7 @@ import logging
 # 로거 설정
 logger = logging.getLogger("schedulo")  # myapp 로거를 사용
 
-CHROMEDRIVER_PATH = "/usr/bin/chromedriver"
-
 from contextlib import contextmanager
-
 import os
 
 CHROMEDRIVER_PATH = os.environ.get("CHROMEDRIVER", "/usr/bin/chromedriver")
@@ -50,43 +47,48 @@ CHROMEDRIVER_PATH = os.environ.get("CHROMEDRIVER", "/usr/bin/chromedriver")
 # chromedriver 설정 함수
 @contextmanager
 def get_driver():
-    runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or "/tmp/chrome-runtime"
-    os.makedirs(runtime_dir, exist_ok=True)
-    os.chmod(runtime_dir, 0o700)  # 디렉토리 권한 설정
-    os.environ["XDG_RUNTIME_DIR"] = runtime_dir
-
-    tmpdir = tempfile.mkdtemp(prefix="chrome-profile-")  # 요청별 고유 디렉토리
-    data_path = os.path.join(tmpdir, "data")
-    cache_path = os.path.join(tmpdir, "cache")
-
-    options = Options()
-    options.add_argument("--headless=new")  # Headless 모드 설정
-    options.add_argument("--lang=ko-KR")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-extensions")  # 확장 프로그램 비활성화
-    options.add_argument("--disable-gpu")  # GPU 가속 비활성화
-
-    # --user-data 중복 방지
-    options.add_argument(f"--user-data-dir={tmpdir}")
-    options.add_argument(f"--data-path={data_path}")
-    options.add_argument(f"--disk-cache-dir={cache_path}")
-    options.add_argument("--remote-debugging-port=9222")
-
-    service = Service(executable_path=CHROMEDRIVER_PATH)
-
-    driver = None
+    tmpdir = None
     try:
-        driver = webdriver.Chrome(service=service, options=options)
-        driver.set_page_load_timeout(30)
-        yield driver
-    finally:
+        runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or "/tmp/chrome-runtime"
+        os.makedirs(runtime_dir, exist_ok=True)
+        os.chmod(runtime_dir, 0o700)  # 디렉토리 권한 설정
+        os.environ["XDG_RUNTIME_DIR"] = runtime_dir
+
+        tmpdir = tempfile.mkdtemp(prefix="chrome-profile-")  # 요청별 고유 디렉토리
+        data_path = os.path.join(tmpdir, "data")
+        cache_path = os.path.join(tmpdir, "cache")
+
+        options = Options()
+        options.add_argument("--headless=new")  # Headless 모드 설정
+        options.add_argument("--lang=ko-KR")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-extensions")  # 확장 프로그램 비활성화
+        options.add_argument("--disable-gpu")  # GPU 가속 비활성화
+
+        # --user-data 중복 방지
+        options.add_argument(f"--user-data-dir={tmpdir}")
+        options.add_argument(f"--data-path={data_path}")
+        options.add_argument(f"--disk-cache-dir={cache_path}")
+        options.add_argument("--remote-debugging-port=9222")
+
+        service = Service(executable_path=CHROMEDRIVER_PATH)
+
+        driver = None
         try:
-            if driver:
-                driver.quit()
-        except Exception:
-            pass
-        shutil.rmtree(tmpdir, ignore_errors=True)
+            driver = webdriver.Chrome(service=service, options=options)
+            driver.set_page_load_timeout(30)
+            yield driver
+        finally:
+            try:
+                if driver:
+                    driver.quit()
+            except Exception:
+                pass
+    finally:
+        # 4. tmpdir이 유효할 경우에만 삭제
+        if tmpdir and os.path.exists(tmpdir):
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 # 학번, 비밀번호 유효성 검사

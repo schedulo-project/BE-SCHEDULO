@@ -71,13 +71,13 @@ def get_driver():
     options.add_argument(f"--user-data-dir={tmpdir}")
     options.add_argument(f"--data-path={data_path}")
     options.add_argument(f"--disk-cache-dir={cache_path}")
-    options.add_argument("--remote-debugging-port=0")
+    options.add_argument("--remote-debugging-port=9222")
 
     service = Service(executable_path=CHROMEDRIVER_PATH)
 
     driver = None
     try:
-        driver = webdriver.Chrome(service=service, options=opts)
+        driver = webdriver.Chrome(service=service, options=options)
         driver.set_page_load_timeout(30)
         yield driver
     finally:

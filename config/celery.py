@@ -11,4 +11,8 @@ app = Celery("config")
 
 app.config_from_object("django.conf:settings", namespace="CELERY")
 
+app.conf.timezone = 'Asia/Seoul'
+
+app.conf.enable_utc = False
+
 app.autodiscover_tasks()

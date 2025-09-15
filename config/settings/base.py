@@ -177,6 +177,9 @@ CELERY_BEAT_SCHEDULE = {
 CELERY_BROKER_URL = "redis://127.0.0.1:6379"
 CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379"
 
+# Celery Beat Schedule File Location
+CELERY_BEAT_SCHEDULE_FILENAME = os.path.join(BASE_DIR, "data", "celerybeat-schedule")
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

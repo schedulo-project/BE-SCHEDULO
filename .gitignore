@@ -132,6 +132,11 @@ __pypackages__/
 # Celery stuff
 celerybeat-schedule
 celerybeat.pid
+data/
+
+# Chrome 관련 파일들
+google-chrome-stable_current_*
+*.deb
 
 # SageMath parsed files
 *.sage.py

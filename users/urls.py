@@ -29,6 +29,11 @@ urlpatterns = [
     ),
     path("crawling/", crawling.CrawlingView.as_view(), name="crawling"),
     path("getTimeTable/", crawling.GetTimeTableView.as_view(), name="get-time-table"),
+    path(
+        "timetable/status/",
+        crawling.TimeTableTaskStatusView.as_view(),
+        name="timetable-task-status",
+    ),
     ### score ###
     path("scores/", views.get_user_score, name="get-user-score"),
 ]

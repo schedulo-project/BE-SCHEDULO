@@ -42,34 +42,47 @@ CHROMEDRIVER_PATH = "/usr/bin/chromedriver"
 
 from contextlib import contextmanager
 
+import os
+
+CHROMEDRIVER_PATH = os.environ.get("CHROMEDRIVER", "/usr/bin/chromedriver")
+
 
 # chromedriver 설정 함수
 @contextmanager
 def get_driver():
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or "/tmp/chrome-runtime"
+    os.makedirs(tmpdir, exist_ok=True)
+    os.chmod(tmpdir, 0o700)  # 디렉토리 권한 설정
+    os.environ["XDG_RUNTIME_DIR"] = runtime_dir  # TMPDIR 환경 변수 설정
+
     tmpdir = tempfile.mkdtemp(prefix="chrome-profile-")  # 요청별 고유 디렉토리
+    data_path = os.path.join(tmpdir, "data")
+    cache_path = os.path.join(tmpdir, "cache")
+
+    options = Options()
+    options.add_argument("--headless=new")  # Headless 모드 설정
+    options.add_argument("--lang=ko-KR")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-extensions")  # 확장 프로그램 비활성화
+    options.add_argument("--disable-gpu")  # GPU 가속 비활성화
+
+    # --user-data 중복 방지
+    options.add_argument(f"--user-data-dir={tmpdir}")
+    options.add_argument(f"--data-path={data_path}")
+    options.add_argument(f"--disk-cache-dir={cache_path}")
+    options.add_argument("--remote-debugging-port=0")
+
+    service = Service(executable_path=CHROMEDRIVER_PATH)
+
     driver = None
     try:
-        options = Options()
-        options.add_argument("--headless=new")  # Headless 모드 설정
-        options.add_argument("--lang=ko-KR")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-extensions")  # 확장 프로그램 비활성화
-        options.add_argument("--disable-gpu")  # GPU 가속 비활성화
-
-        # --user-data 중복 방지
-        options.add_argument(f"--user-data-dir={tmpdir}")
-        options.add_argument(f"--data-path={tmpdir}/data")
-        options.add_argument(f"--disk-cache-dir={tmpdir}/cache")
-        options.add_argument("--remote-debugging-port=0")
-
-        service = Service(executable_path=CHROMEDRIVER_PATH)
-        driver = webdriver.Chrome(service=service, options=options)
+        driver = webdriver.Chrome(service=service, options=opts)
         driver.set_page_load_timeout(30)
         yield driver
     finally:
         try:
-            if driver is not None:
+            if driver:
                 driver.quit()
         except Exception:
             pass

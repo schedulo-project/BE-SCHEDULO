@@ -51,9 +51,9 @@ CHROMEDRIVER_PATH = os.environ.get("CHROMEDRIVER", "/usr/bin/chromedriver")
 @contextmanager
 def get_driver():
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or "/tmp/chrome-runtime"
-    os.makedirs(tmpdir, exist_ok=True)
-    os.chmod(tmpdir, 0o700)  # 디렉토리 권한 설정
-    os.environ["XDG_RUNTIME_DIR"] = runtime_dir  # TMPDIR 환경 변수 설정
+    os.makedirs(runtime_dir, exist_ok=True)
+    os.chmod(runtime_dir, 0o700)  # 디렉토리 권한 설정
+    os.environ["XDG_RUNTIME_DIR"] = runtime_dir
 
     tmpdir = tempfile.mkdtemp(prefix="chrome-profile-")  # 요청별 고유 디렉토리
     data_path = os.path.join(tmpdir, "data")

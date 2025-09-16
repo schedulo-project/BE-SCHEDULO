@@ -14,6 +14,7 @@ venv
 .env
 serviceAccountKey.json
 docs
+celerybeat-schedule*
 
 
 # If your build process includes running collectstatic, then you probably don't need or want to include staticfiles/

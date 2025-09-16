@@ -146,9 +146,9 @@ CELERY_BEAT_SCHEDULE = {
     "weekly_review_schedules_creation": {
         "task": "schedules.tasks.generate_weekly_review_schedules",
         "schedule": crontab(
-            hour=16,  # UTC 기준 (KST 01:00 = UTC 16:00)
+            hour=1,
             minute=0,
-            day_of_week=6,  # 일요일 UTC → 월요일 KST
+            day_of_week=1,  # 일요일 UTC → 월요일 KST
         ),
     },
     "score-api": {
@@ -205,7 +205,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Seoul"
 
 USE_I18N = True
 

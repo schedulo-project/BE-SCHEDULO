@@ -43,6 +43,12 @@ import os
 
 CHROMEDRIVER_PATH = os.environ.get("CHROMEDRIVER", "/usr/bin/chromedriver")
 
+if not os.path.exists(CHROMEDRIVER_PATH):
+    logger.warning(
+        f"ChromeDriver not found at {CHROMEDRIVER_PATH}, using ChromeDriverManager"
+    )
+    CHROMEDRIVER_PATH = None  # ChromeDriverManager 사용
+
 
 # chromedriver 설정 함수
 @contextmanager
@@ -72,7 +78,11 @@ def get_driver():
         options.add_argument(f"--disk-cache-dir={cache_path}")
         options.add_argument("--remote-debugging-port=9222")
 
-        service = Service(executable_path=CHROMEDRIVER_PATH)
+        # ChromeDriver 경로에 따라 Service 설정
+        if CHROMEDRIVER_PATH:
+            service = Service(executable_path=CHROMEDRIVER_PATH)
+        else:
+            service = Service(executable_path=ChromeDriverManager().install())
 
         driver = None
         try:

@@ -41,9 +41,8 @@ class ScheduleSerializer(serializers.ModelSerializer):
         return TagSerializer(tags, many=True).data
 
     def create(self, validated_data):
-        """Schedule 객체 생성"""
-        # user는 context에서 가져오거나 validated_data에서 가져오기
-        user = self.context.get("request", {}).get("user") or validated_data.get("user")
+        request = self.context.get("request")
+        user = getattr(request, "user", None) or validated_data.get("user")
         if user:
             validated_data["user"] = user
 

@@ -34,6 +34,11 @@ urlpatterns = [
         crawling.TimeTableTaskStatusView.as_view(),
         name="timetable-task-status",
     ),
+    path(
+        "events/status/",
+        crawling.EventsTaskStatusView.as_view(),
+        name="events-task-status",
+    ),
     ### score ###
     path("scores/", views.get_user_score, name="get-user-score"),
 ]

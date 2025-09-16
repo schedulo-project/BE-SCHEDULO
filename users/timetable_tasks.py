@@ -10,6 +10,7 @@ from selenium.webdriver.chrome.service import Service
 from users.utils import (
     check_error,
     get_courses,
+    get_events,
     get_syllabus,
     login_attempt,
     save_to_timetable,
@@ -24,9 +25,10 @@ logger = logging.getLogger("schedulo")
 import os
 
 
+# ChromeDriver 경로 설정 (서버 환경에 맞게 조정)
 CHROMEDRIVER_PATH = os.environ.get("CHROMEDRIVER", "/usr/bin/chromedriver")
 
-# ChromeDriver 없을 경우 ChromeDriverManager 사용
+# ChromeDriver 존재 확인
 if not os.path.exists(CHROMEDRIVER_PATH):
     logger.warning(
         f"ChromeDriver not found at {CHROMEDRIVER_PATH}, using ChromeDriverManager"
@@ -223,10 +225,10 @@ def crawl_timetable_task(self, user_id):
                             title="📅 시간표 불러오기 완료",
                             body=f"{len(courses_data)}개의 과목 시간표가 성공적으로 불러와졌습니다!",
                         )
-                        logger.info(f"완료 알림 전송 - 사용자: {user.username}")
+                        logger.info(f"완료 알림 전송 - 사용자: {user.email}")
                     except Exception as e:
                         logger.error(
-                            f"알림 전송 실패 - 사용자: {user.username}, 오류: {e}"
+                            f"알림 전송 실패 - 사용자: {user.email}, 오류: {e}"
                         )
                 else:
                     result = {
@@ -238,7 +240,7 @@ def crawl_timetable_task(self, user_id):
                     }
 
                     logger.warning(
-                        f"⚠️ 시간표 크롤링 완료 - 사용자: {user.username}, 저장할 데이터 없음, 기존 데이터 유지"
+                        f"⚠️ 시간표 크롤링 완료 - 사용자: {user.email}, 저장할 데이터 없음, 기존 데이터 유지"
                     )
 
                     # 알림 전송
@@ -248,17 +250,17 @@ def crawl_timetable_task(self, user_id):
                             title="📅 시간표 불러오기 완료",
                             body="시간표 크롤링이 완료되었지만 저장할 데이터가 없어 기존 데이터를 유지합니다.",
                         )
-                        logger.info(f"알림 전송 - 사용자: {user.username}")
+                        logger.info(f"알림 전송 - 사용자: {user.email}")
                     except Exception as e:
                         logger.error(
-                            f"알림 전송 실패 - 사용자: {user.username}, 오류: {e}"
+                            f"알림 전송 실패 - 사용자: {user.email}, 오류: {e}"
                         )
 
                 return result
 
             except Exception as e:
                 error_msg = f"시간표 크롤링 중 오류가 발생했습니다: {str(e)}"
-                logger.error(f"시간표 크롤링 오류 - 사용자: {user.username}, 오류: {e}")
+                logger.error(f"시간표 크롤링 오류 - 사용자: {user.email}, 오류: {e}")
                 return {"status": "FAILURE", "message": error_msg, "error": str(e)}
 
     except User.DoesNotExist:
@@ -269,4 +271,116 @@ def crawl_timetable_task(self, user_id):
     except Exception as e:
         error_msg = f"시간표 크롤링 중 오류가 발생했습니다: {str(e)}"
         logger.error(f"시간표 크롤링 오류 - 사용자 ID: {user_id}, 오류: {e}")
+        return {"status": "FAILURE", "message": error_msg, "error": str(e)}
+
+
+@shared_task(bind=True)
+def crawl_events_task(self, user_id):
+    """일정 크롤링을 비동기로 실행하는 태스크"""
+    try:
+        # 태스크 상태 업데이트
+        self.update_state(
+            state="PROGRESS",
+            meta={"status": "일정 크롤링을 시작합니다...", "progress": 10},
+        )
+
+        # 사용자 정보 조회
+        user = User.objects.get(id=user_id)
+        student_id = user.student_id
+        student_password = user.get_student_password()
+
+        logger.info(f"일정 크롤링 시작 - 사용자: {user.email} (ID: {user_id})")
+
+        # WebDriver 설정
+        with get_driver() as driver:
+            try:
+                # 태스크 상태 업데이트
+                self.update_state(
+                    state="PROGRESS",
+                    meta={"status": "eCampus 로그인 중...", "progress": 20},
+                )
+
+                # eCampus 로그인
+                login_attempt(driver, student_id, student_password)
+                if check_error(driver):
+                    error_msg = "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."
+                    logger.error(f"로그인 실패 - 사용자: {user.email}")
+                    return {
+                        "status": "FAILURE",
+                        "message": error_msg,
+                        "error": error_msg,
+                    }
+
+                logger.info("✅ 로그인 성공!")
+
+                # 태스크 상태 업데이트
+                self.update_state(
+                    state="PROGRESS",
+                    meta={"status": "일정 정보를 불러오는 중...", "progress": 60},
+                )
+
+                # 일정 불러오기
+                logger.info("일정 크롤링 시작...")
+                course_events, saved_event_count, saved_schedule_ids = get_events(
+                    driver, user
+                )
+                logger.info(
+                    f"일정 크롤링 결과: {course_events}, 저장된 일정 수: {saved_event_count}, 저장된 일정 ID: {saved_schedule_ids}"
+                )
+
+                if not saved_event_count:
+                    result = {
+                        "status": "SUCCESS",
+                        "message": "새로운 일정이 없습니다.",
+                        "events_count": 0,
+                        "events_data": [],
+                    }
+                    logger.info(
+                        f"일정 크롤링 완료 - 사용자: {user.email}, 새로운 일정 없음"
+                    )
+                else:
+                    result = {
+                        "status": "SUCCESS",
+                        "message": f"{saved_event_count}개의 일정을 불러왔습니다.",
+                        "events_count": saved_event_count,  # 실제 저장된 일정 수
+                        "events_data": course_events,
+                        "saved_schedule_ids": saved_schedule_ids,  # 저장된 일정 ID 목록
+                    }
+                    logger.info(
+                        f"일정 크롤링 완료 - 사용자: {user.email}, 저장된 일정: {saved_event_count}개"
+                    )
+
+                    # 완료 알림 전송
+                    try:
+                        send_multi_channel(
+                            user=user,
+                            title="📅 일정 불러오기 완료",
+                            body=f"{saved_event_count}개의 일정을 불러왔습니다!",
+                        )
+                        logger.info(f"완료 알림 전송 - 사용자: {user.email}")
+                    except Exception as e:
+                        logger.error(
+                            f"알림 전송 실패 - 사용자: {user.email}, 오류: {e}"
+                        )
+
+                # 태스크 상태 업데이트
+                self.update_state(
+                    state="PROGRESS", meta={"status": "완료!", "progress": 100}
+                )
+
+                return result
+
+            except Exception as e:
+                error_msg = f"일정 크롤링 중 오류가 발생했습니다: {str(e)}"
+                logger.error(f"일정 크롤링 오류 - 사용자: {user.email}, 오류: {e}")
+                return {"status": "FAILURE", "message": error_msg, "error": str(e)}
+
+    except User.DoesNotExist:
+        error_msg = f"사용자를 찾을 수 없습니다. (ID: {user_id})"
+        logger.error(error_msg)
+        return {"status": "FAILURE", "message": error_msg, "error": error_msg}
+
+    except Exception as e:
+        error_msg = f"일정 크롤링 중 오류가 발생했습니다: {str(e)}"
+        logger.error(f"일정 크롤링 오류 - 사용자 ID: {user_id}, 오류: {e}")
         return {"status": "FAILURE", "message": error_msg, "error": str(e)}

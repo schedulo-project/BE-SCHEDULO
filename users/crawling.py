@@ -28,7 +28,7 @@ from users.utils import (
     login_attempt,
     save_to_timetable,
 )
-from users.timetable_tasks import crawl_timetable_task
+from users.timetable_tasks import crawl_timetable_task, crawl_events_task
 from celery.result import AsyncResult
 import shutil
 
@@ -41,8 +41,10 @@ logger = logging.getLogger("schedulo")  # myapp 로거를 사용
 from contextlib import contextmanager
 import os
 
+# ChromeDriver 경로 설정 (서버 환경에 맞게 조정)
 CHROMEDRIVER_PATH = os.environ.get("CHROMEDRIVER", "/usr/bin/chromedriver")
 
+# ChromeDriver 존재 확인
 if not os.path.exists(CHROMEDRIVER_PATH):
     logger.warning(
         f"ChromeDriver not found at {CHROMEDRIVER_PATH}, using ChromeDriverManager"
@@ -138,7 +140,7 @@ class GetTimeTableView(APIView):
             task = crawl_timetable_task.delay(request.user.id)
 
             logger.info(
-                f"시간표 크롤링 태스크 시작 - 사용자: {request.user.username}, 태스크 ID: {task.id}"
+                f"시간표 크롤링 태스크 시작 - 사용자: {request.user.email}, 태스크 ID: {task.id}"
             )
 
             return Response(
@@ -151,7 +153,7 @@ class GetTimeTableView(APIView):
             )
         except Exception as e:
             logger.error(
-                f"시간표 크롤링 태스크 시작 실패 - 사용자: {request.user.username}, 오류: {e}"
+                f"시간표 크롤링 태스크 시작 실패 - 사용자: {request.user.email}, 오류: {e}"
             )
             return Response(
                 {"message": "시간표 불러오기 시작에 실패했습니다.", "error": str(e)},
@@ -164,6 +166,151 @@ class TimeTableTaskStatusView(APIView):
     def get(self, request):
         """
         시간표 크롤링 태스크의 상태를 확인합니다.
+        """
+        task_id = request.GET.get("task_id")
+
+        if not task_id:
+            return Response(
+                {"message": "task_id가 필요합니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Celery 태스크 결과 조회
+            task_result = AsyncResult(task_id)
+
+            if task_result.state == "PENDING":
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": "대기 중...",
+                    "progress": 0,
+                }
+            elif task_result.state == "PROGRESS":
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": task_result.info.get("status", "진행 중..."),
+                    "progress": task_result.info.get("progress", 0),
+                }
+            elif task_result.state == "SUCCESS":
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": "완료",
+                    "progress": 100,
+                    "result": task_result.result,
+                }
+
+                # 해당 task에서 저장된 일정 리스트만 반환
+                try:
+                    from schedules.models import Schedule
+
+                    # task 결과에서 저장된 일정 ID 목록 가져오기
+                    saved_schedule_ids = task_result.result.get(
+                        "saved_schedule_ids", []
+                    )
+
+                    if saved_schedule_ids:
+                        # 해당 ID들로 일정 조회 (태그 정보 포함)
+                        saved_schedules = (
+                            Schedule.objects.filter(id__in=saved_schedule_ids)
+                            .select_related()
+                            .prefetch_related("tag")
+                            .order_by("-scheduled_date", "title")
+                        )
+
+                        # 간단한 형태로 변환 (id, title, scheduled_date, tag_name만)
+                        simple_schedules = []
+                        for schedule in saved_schedules:
+                            # 태그 이름들 가져오기 (첫 번째 태그만)
+                            tag_name = (
+                                schedule.tag.first().name
+                                if schedule.tag.exists()
+                                else None
+                            )
+
+                            simple_schedules.append(
+                                {
+                                    "id": schedule.id,
+                                    "title": schedule.title,
+                                    "scheduled_date": schedule.scheduled_date.strftime(
+                                        "%Y-%m-%d"
+                                    ),
+                                    "tag_name": tag_name,
+                                }
+                            )
+
+                        response_data["saved_schedules"] = simple_schedules
+                        response_data["saved_schedules_count"] = len(simple_schedules)
+                    else:
+                        response_data["saved_schedules"] = []
+                        response_data["saved_schedules_count"] = 0
+
+                except Exception as e:
+                    logger.error(f"저장된 일정 리스트 조회 실패: {e}")
+                    response_data["saved_schedules"] = []
+                    response_data["saved_schedules_count"] = 0
+            elif task_result.state == "FAILURE":
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": "실패",
+                    "error": str(task_result.info),
+                }
+            else:
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": "알 수 없는 상태",
+                    "progress": 0,
+                }
+
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"태스크 상태 확인 실패 - 태스크 ID: {task_id}, 오류: {e}")
+            return Response(
+                {"message": "태스크 상태 확인에 실패했습니다.", "error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ecampus 일정 불러오기 (비동기)
+class CrawlingView(APIView):
+    def get(self, request):
+
+        try:
+            # Celery 태스크 시작
+            task = crawl_events_task.delay(request.user.id)
+
+            logger.info(
+                f"일정 크롤링 태스크 시작 - 사용자: {request.user.email}, 태스크 ID: {task.id}"
+            )
+
+            return Response(
+                {
+                    "message": "일정 불러오기를 시작했습니다. 완료되면 알림을 받으실 수 있습니다.",
+                    "task_id": task.id,
+                    "status": "STARTED",
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+        except Exception as e:
+            logger.error(
+                f"일정 크롤링 태스크 시작 실패 - 사용자: {request.user.email}, 오류: {e}"
+            )
+            return Response(
+                {"message": "일정 불러오기 시작에 실패했습니다.", "error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# 일정 크롤링 상태 확인
+class EventsTaskStatusView(APIView):
+    def get(self, request):
+        """
+        일정 크롤링 태스크의 상태를 확인합니다.
         """
         task_id = request.GET.get("task_id")
 
@@ -217,50 +364,10 @@ class TimeTableTaskStatusView(APIView):
             return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
-            logger.error(f"태스크 상태 확인 실패 - 태스크 ID: {task_id}, 오류: {e}")
+            logger.error(
+                f"일정 태스크 상태 확인 실패 - 태스크 ID: {task_id}, 오류: {e}"
+            )
             return Response(
                 {"message": "태스크 상태 확인에 실패했습니다.", "error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-
-# ecampus 일정 불러오기
-class CrawlingView(APIView):
-    def get(self, request):
-        student_id = self.request.user.student_id
-        student_password = self.request.user.get_student_password()
-
-        with get_driver() as driver:
-            try:
-                # ecampus login
-                login_attempt(driver, student_id, student_password)
-                if check_error(driver):
-                    return Response(
-                        {
-                            "message": "로그인 실패: 학번 또는 비밀번호가 잘못되었습니다."
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-                logger.info("✅ 로그인 성공")
-
-                # 일정 불러오기
-                course_events = get_events(driver, request.user)
-                if not course_events:
-                    return Response(
-                        {"message": "새로운 일정이 없습니다."},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
-
-                return Response(
-                    {
-                        "message": "일정을 모두 불러왔습니다.",
-                        "courses": course_events,  # 중복 제외한 과목 정보 반환
-                    },
-                    status=status.HTTP_200_OK,
-                )
-            except Exception as e:
-                logger.error(f"CrawlingView 오류: {e}")
-                return Response(
-                    {"message": "일정 불러오기 중 오류가 발생했습니다."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )

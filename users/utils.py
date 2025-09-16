@@ -234,29 +234,42 @@ def get_all_first_semester_courses(driver, semester):
 
 def get_events_for_course(driver, course_text):
     """특정 강좌의 이벤트를 가져오기"""
-    select_element = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located(
-            (By.CSS_SELECTOR, "select.select.autosubmit.cal_courses_flt")
+    try:
+        select_element = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, "select.select.autosubmit.cal_courses_flt")
+            )
         )
-    )
-    select = Select(select_element)
-    select.select_by_visible_text(course_text)
-    time.sleep(0.5)
+        select = Select(select_element)
+        select.select_by_visible_text(course_text)
+        time.sleep(0.5)
 
-    soup = BeautifulSoup(driver.page_source, "lxml")
-    date_elements = soup.select("div.day a")
-    event_lists = soup.select("ul.events-new")
+        soup = BeautifulSoup(driver.page_source, "lxml")
+        date_elements = soup.select("div.day a")
+        event_lists = soup.select("ul.events-new")
 
-    events_by_date = {}
-    for i, date_text in enumerate([date.get_text().strip() for date in date_elements]):
-        try:
-            events = event_lists[i].select("li.calendar_event_course a")
-            event_texts = [event.get_text().strip() for event in events]
-            if event_texts:
-                events_by_date[date_text] = event_texts
-        except IndexError:
-            continue
-    return events_by_date
+        logger.debug(
+            f"강좌 {course_text} - 날짜 요소 개수: {len(date_elements)}, 이벤트 리스트 개수: {len(event_lists)}"
+        )
+
+        events_by_date = {}
+        for i, date_text in enumerate(
+            [date.get_text().strip() for date in date_elements]
+        ):
+            try:
+                events = event_lists[i].select("li.calendar_event_course a")
+                event_texts = [event.get_text().strip() for event in events]
+                if event_texts:
+                    events_by_date[date_text] = event_texts
+                    logger.debug(f"날짜 {date_text}: {event_texts}")
+            except IndexError:
+                continue
+
+        logger.debug(f"강좌 {course_text} 최종 이벤트: {events_by_date}")
+        return events_by_date
+    except Exception as e:
+        logger.error(f"강좌 {course_text} 이벤트 파싱 오류: {e}")
+        return {}
 
 
 def move_to_next_month(driver):
@@ -298,6 +311,8 @@ def get_events(driver, user, year=None, months=None):
 
     # 과목별 이벤트 저장
     course_events = {}
+    saved_count = 0  # 실제로 저장된 이벤트 수
+    saved_schedule_ids = []  # 저장된 일정들의 ID 목록
 
     for month in months:
         start_date = datetime(year, month, 1)
@@ -325,6 +340,7 @@ def get_events(driver, user, year=None, months=None):
             logger.debug(f"선택된 강좌: {course_text}")
             # get events
             events = get_events_for_course(driver, course_text)
+            logger.debug(f"강좌 {course_text}의 이벤트: {events}")
 
             subject_name = (
                 re.search(r"\](.*?)\(", course_text).group(1).strip()
@@ -354,26 +370,47 @@ def get_events(driver, user, year=None, months=None):
                         data = {
                             "title": event,
                             "scheduled_date": scheduled_date,
-                            "user": user,
+                            "user": user.id,  # pk 값으로 전달
                         }
-                        serializer = ScheduleSerializer(
-                            data=data, context={"request": None}
-                        )
+                        logger.debug(f"저장 시도 - 데이터: {data}")
+
+                        # context에 user 정보 전달
+                        context = {"request": {"user": user}}
+                        serializer = ScheduleSerializer(data=data, context=context)
+
                         if serializer.is_valid():
+                            logger.debug(f"Serializer 유효성 검사 통과: {event}")
                             schedule = serializer.save()
-                            # save_tags
+                            logger.debug(f"Schedule 객체 저장 완료: {schedule.id}")
+
+                            # 태그 추가
                             schedule.tag.add(tag)
+                            logger.debug(f"태그 추가 완료: {tag.name}")
+
                             course_events.setdefault(subject_name, []).append(
                                 {
                                     "title": event,
                                     "scheduled_date": scheduled_date,
                                 }
                             )
-                            logger.debug(f" ✅ 저장됨: {event}")
+                            saved_count += 1  # 저장된 이벤트 수 증가
+                            saved_schedule_ids.append(
+                                schedule.id
+                            )  # 저장된 일정 ID 추가
+                            logger.debug(
+                                f" ✅ 저장됨: {event} (총 저장 수: {saved_count}, ID: {schedule.id})"
+                            )
+                        else:
+                            logger.error(
+                                f"❌ Serializer 유효성 검사 실패: {serializer.errors}"
+                            )
 
                 except Exception as e:
-                    logger.warning(f"❌ 이벤트 저장 실패: {e}")
+                    logger.error(f"❌ 이벤트 저장 실패: {e}", exc_info=True)
 
         move_to_next_month(driver)
 
-    return course_events
+    logger.info(
+        f"📅 이벤트 크롤링 완료 - 사용자: {user.email}, 저장된 일정 수: {saved_count}"
+    )
+    return course_events, saved_count, saved_schedule_ids

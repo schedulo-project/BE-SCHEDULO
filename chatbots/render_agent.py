@@ -46,7 +46,7 @@ def generate_html(query, data, template_name):
         }}
     }}
 
-    2. template_name이 "tags_list.hthml"인 경우, 보통 일정 데이터가 넘어오고 당신은 아래 형식처럼 태그로 묶습니다. 
+    2. template_name이 "tags_list.html"인 경우, 보통 일정 데이터가 넘어오고 당신은 아래 형식처럼 태그로 묶습니다. 
         일정은 태그를 여러개 가질 수 있기 때문에 서로 다른 태그에 같은 일정이 들어가는 것은 자연스럽습니다.
     변환 전 일정 데이터: 
     {{
@@ -84,7 +84,7 @@ def generate_html(query, data, template_name):
         ]
     }}
 
-    3. template_name이 "timetables_list.hthml"인 경우, 보통 시간표 데이터가 넘어오고 당신은 아래 형식으로 변환합니다. 
+    3. template_name이 "timetables_list.html"인 경우, 보통 시간표 데이터가 넘어오고 당신은 아래 형식으로 변환합니다. 
     원본 데이터:
     {{
         "timetables": [

@@ -3,7 +3,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Chatting
 from .serializers import ChattingSerializer
-from .services import get_chatbot_response
+from .graphs import run_agent_graph
+
+from django.utils import timezone
+
+
+from .core_agent import run_core_agent
 
 
 class ChatbotAPIView(APIView):
@@ -14,12 +19,6 @@ class ChatbotAPIView(APIView):
 
     def post(self, request):
         query = request.data.get("query")
-        answer_json = get_chatbot_response(query)[7:-4]
-        answer_dict = json.loads(answer_json)
+        answer = run_agent_graph(query, request.user.id)
 
-        chatting = Chatting.objects.create(
-            query=query, answer=answer_dict, user=request.user
-        )
-
-        serializer = ChattingSerializer(chatting)
-        return Response(serializer.data)
+        return Response(answer)

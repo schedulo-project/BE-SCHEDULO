@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>태그 목록</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+
+  <!-- 태그 카드 그리드 -->
+  <div class="grid grid-cols-2 justify-items-center gap-2">
+    {% for tag in tags %}
+    <div class="w-[16rem] h-[24rem] bg-[#F0F0F0] 
+                shadow-[0px_3.76px_3.76px_0px_rgba(0,0,0,0.25)] 
+                border-[0.47px] border-stone-500 rounded-2xl 
+                p-4 flex flex-col">
+      
+      <!-- 상단 태그 이름 + 색상 -->
+      <div class="flex justify-between items-center">
+        <div class="w-[10rem] text-zinc-900 text-[17px] font-bold truncate">
+          {{ tag.name }}
+        </div>
+        <div class="w-6 h-6 rounded-full" style="background-color: {{ tag.color }};"></div>
+      </div>
+
+      <div class="mt-2 h-[1px] bg-gray-300"></div>
+      
+      <!-- 이벤트 리스트 -->
+      <div class="flex flex-col gap-2 mt-4 overflow-y-auto h-[16rem]">
+        {% for schedule in tag.schedules %}
+        <div class="flex items-center gap-2">
+          <div class="text-blue-950 font-normal cursor-pointer {% if schedule.is_completed %}opacity-50{% endif %}">
+            {{ schedule.title }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+
+</body>
+</html>

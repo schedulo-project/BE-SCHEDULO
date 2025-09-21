@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>일정 목록</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="p-6 bg-gray-100">
+
+  <div>
+    <h3 class="font-bold text-xl mb-4">확인된 일정</h3>
+
+    {% for date_str, items in schedules.items() %}
+    <div class="mb-4">
+      <h4 class="font-semibold text-lg mb-2">{{ date_str }}</h4>
+
+      {% for item in items %}
+      <div class="flex items-center justify-between bg-[#F0F0F0] border-4 border-[#E0E0E0] rounded-md p-2 mb-2">
+        <section>
+          <span class="text-sm text-[#1A1A1A] font-semibold">{{ item.title }}</span>
+          <div class="mt-1 flex flex-wrap gap-1">
+            {% for tag in item.tag %}
+            <span class="inline-block rounded px-2 py-0.5 text-xs" style="background-color: {{ tag.color }}">{{ tag.name }}</span>
+            {% endfor %}
+          </div>
+        </section>
+      </div>
+      {% endfor %}
+
+    </div>
+    {% endfor %}
+
+  </div>
+</body>
+</html>

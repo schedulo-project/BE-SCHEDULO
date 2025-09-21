@@ -65,20 +65,18 @@ graph.add_node("render", render_agent)
 
 # 시작 노드
 graph.add_edge(START, "core")
-graph.add_edge("core", END)
-
 
 # Core → Render / END 조건부 엣지
-# def decide_next(state: State):
-#     if state.get("render_html") and state.get("data") is not None:
-#         return "render"
-#     return END
+def decide_next(state: State):
+    if state.get("render_html") and state.get("data") is not None:
+        return "render"
+    return END
 
 
-# graph.add_conditional_edges("core", decide_next)
+graph.add_conditional_edges("core", decide_next)
 
 # Render → END
-# graph.add_edge("render", END)
+graph.add_edge("render", END)
 
 compiled_graph = graph.compile()
 

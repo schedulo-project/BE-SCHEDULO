@@ -11,6 +11,7 @@ import re
 
 from schedules.models import Schedule, Tag, TimeTable
 from schedules.serializers import ScheduleSerializer
+from schedules.views import tag_colors
 
 
 # log test
@@ -185,8 +186,11 @@ def save_to_timetable(self, user, courses_data):
 
             subject = course_name[:30] if len(course_name) > 30 else course_name
 
+            order = Tag.objects.filter(user=user).count()
             tag, created = Tag.objects.get_or_create(name=subject, user=user)
             if created:
+                tag.color = tag_colors[order % len(tag_colors)]
+                tag.save()
                 logger.info(f"✅ 태그 저장: {tag.name}")
 
             # Check for existing entry to avoid duplicates

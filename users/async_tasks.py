@@ -25,11 +25,11 @@ logger = logging.getLogger("schedulo")
 import os
 
 
-# ChromeDriver 경로 설정 (서버 환경에 맞게 조정)
-CHROMEDRIVER_PATH = os.environ.get("CHROMEDRIVER", "/usr/bin/chromedriver")
+# ChromeDriver 경로 설정 (Windows 환경에 맞게 조정)
+CHROMEDRIVER_PATH = os.environ.get("CHROMEDRIVER")
 
 # ChromeDriver 존재 확인
-if not os.path.exists(CHROMEDRIVER_PATH):
+if CHROMEDRIVER_PATH and not os.path.exists(CHROMEDRIVER_PATH):
     logger.warning(
         f"ChromeDriver not found at {CHROMEDRIVER_PATH}, using ChromeDriverManager"
     )
@@ -41,10 +41,12 @@ if not os.path.exists(CHROMEDRIVER_PATH):
 def get_driver():
     tmpdir = None
     try:
-        runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or "/tmp/chrome-runtime"
-        os.makedirs(runtime_dir, exist_ok=True)
-        os.chmod(runtime_dir, 0o700)  # 디렉토리 권한 설정
-        os.environ["XDG_RUNTIME_DIR"] = runtime_dir
+        # Windows 환경에서는 XDG_RUNTIME_DIR 설정 생략
+        if os.name != "nt":  # Unix/Linux 환경에서만
+            runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or "/tmp/chrome-runtime"
+            os.makedirs(runtime_dir, exist_ok=True)
+            os.chmod(runtime_dir, 0o700)  # 디렉토리 권한 설정
+            os.environ["XDG_RUNTIME_DIR"] = runtime_dir
 
         tmpdir = tempfile.mkdtemp(prefix="chrome-profile-")  # 요청별 고유 디렉토리
         data_path = os.path.join(tmpdir, "data")
@@ -53,16 +55,21 @@ def get_driver():
         options = Options()
         options.add_argument("--headless=new")  # Headless 모드 설정
         options.add_argument("--lang=ko-KR")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-extensions")  # 확장 프로그램 비활성화
-        options.add_argument("--disable-gpu")  # GPU 가속 비활성화
 
-        # --user-data 중복 방지
-        options.add_argument(f"--user-data-dir={tmpdir}")
-        options.add_argument(f"--data-path={data_path}")
-        options.add_argument(f"--disk-cache-dir={cache_path}")
-        options.add_argument("--remote-debugging-port=9222")
+        # Windows 환경에 맞는 옵션
+        if os.name == "nt":  # Windows
+            options.add_argument("--disable-extensions")
+            options.add_argument("--disable-gpu")
+            options.add_argument(f"--user-data-dir={tmpdir}")
+        else:  # Unix/Linux
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+            options.add_argument("--disable-extensions")
+            options.add_argument("--disable-gpu")
+            options.add_argument(f"--user-data-dir={tmpdir}")
+            options.add_argument(f"--data-path={data_path}")
+            options.add_argument(f"--disk-cache-dir={cache_path}")
+            options.add_argument("--remote-debugging-port=9222")
 
         # ChromeDriver 경로에 따라 Service 설정
         if CHROMEDRIVER_PATH:
@@ -274,6 +281,7 @@ def crawl_timetable_task(self, user_id):
         return {"status": "FAILURE", "message": error_msg, "error": str(e)}
 
 
+# ------------------------------- 일정 크롤링 태스크 ------------------------------- #
 @shared_task(bind=True)
 def crawl_events_task(self, user_id):
     """일정 크롤링을 비동기로 실행하는 태스크"""
@@ -288,7 +296,6 @@ def crawl_events_task(self, user_id):
         user = User.objects.get(id=user_id)
         student_id = user.student_id
         student_password = user.get_student_password()
-
         logger.info(f"일정 크롤링 시작 - 사용자: {user.email} (ID: {user_id})")
 
         # WebDriver 설정
@@ -338,6 +345,19 @@ def crawl_events_task(self, user_id):
                     logger.info(
                         f"일정 크롤링 완료 - 사용자: {user.email}, 새로운 일정 없음"
                     )
+
+                    # 새로운 일정이 없을 때도 알림 전송
+                    try:
+                        send_multi_channel(
+                            user=user,
+                            title="📅 일정 불러오기 완료",
+                            body="새로운 일정이 없습니다. 모든 일정이 최신 상태입니다.",
+                        )
+                        logger.info(f"알림 전송 - 사용자: {user.email}")
+                    except Exception as e:
+                        logger.error(
+                            f"알림 전송 실패 - 사용자: {user.email}, 오류: {e}"
+                        )
                 else:
                     result = {
                         "status": "SUCCESS",

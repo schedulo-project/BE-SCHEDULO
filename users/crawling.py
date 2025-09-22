@@ -28,7 +28,7 @@ from users.utils import (
     login_attempt,
     save_to_timetable,
 )
-from users.timetable_tasks import crawl_timetable_task, crawl_events_task
+from users.async_tasks import crawl_timetable_task, crawl_events_task
 from celery.result import AsyncResult
 import shutil
 
@@ -202,6 +202,72 @@ class TimeTableTaskStatusView(APIView):
                     "result": task_result.result,
                 }
 
+            elif task_result.state == "FAILURE":
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": "실패",
+                    "error": str(task_result.info),
+                }
+            else:
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": "알 수 없는 상태",
+                    "progress": 0,
+                }
+
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"태스크 상태 확인 실패 - 태스크 ID: {task_id}, 오류: {e}")
+            return Response(
+                {"message": "태스크 상태 확인에 실패했습니다.", "error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+##일정 크롤링 상태 확인
+class EventsTaskStatusView(APIView):
+    def get(self, request):
+        """
+        일정 크롤링 태스크의 상태를 확인합니다.
+        """
+        task_id = request.GET.get("task_id")
+
+        if not task_id:
+            return Response(
+                {"message": "task_id가 필요합니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Celery 태스크 결과 조회
+            task_result = AsyncResult(task_id)
+
+            if task_result.state == "PENDING":
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": "대기 중...",
+                    "progress": 0,
+                }
+            elif task_result.state == "PROGRESS":
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": task_result.info.get("status", "진행 중..."),
+                    "progress": task_result.info.get("progress", 0),
+                }
+            elif task_result.state == "SUCCESS":
+                response_data = {
+                    "task_id": task_id,
+                    "state": task_result.state,
+                    "status": "완료",
+                    "progress": 100,
+                    "result": task_result.result,
+                }
+
                 # 해당 task에서 저장된 일정 리스트만 반환
                 try:
                     from schedules.models import Schedule
@@ -251,6 +317,7 @@ class TimeTableTaskStatusView(APIView):
                     logger.error(f"저장된 일정 리스트 조회 실패: {e}")
                     response_data["saved_schedules"] = []
                     response_data["saved_schedules_count"] = 0
+
             elif task_result.state == "FAILURE":
                 response_data = {
                     "task_id": task_id,
@@ -302,72 +369,5 @@ class CrawlingView(APIView):
             )
             return Response(
                 {"message": "일정 불러오기 시작에 실패했습니다.", "error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-
-# 일정 크롤링 상태 확인
-class EventsTaskStatusView(APIView):
-    def get(self, request):
-        """
-        일정 크롤링 태스크의 상태를 확인합니다.
-        """
-        task_id = request.GET.get("task_id")
-
-        if not task_id:
-            return Response(
-                {"message": "task_id가 필요합니다."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            # Celery 태스크 결과 조회
-            task_result = AsyncResult(task_id)
-
-            if task_result.state == "PENDING":
-                response_data = {
-                    "task_id": task_id,
-                    "state": task_result.state,
-                    "status": "대기 중...",
-                    "progress": 0,
-                }
-            elif task_result.state == "PROGRESS":
-                response_data = {
-                    "task_id": task_id,
-                    "state": task_result.state,
-                    "status": task_result.info.get("status", "진행 중..."),
-                    "progress": task_result.info.get("progress", 0),
-                }
-            elif task_result.state == "SUCCESS":
-                response_data = {
-                    "task_id": task_id,
-                    "state": task_result.state,
-                    "status": "완료",
-                    "progress": 100,
-                    "result": task_result.result,
-                }
-            elif task_result.state == "FAILURE":
-                response_data = {
-                    "task_id": task_id,
-                    "state": task_result.state,
-                    "status": "실패",
-                    "error": str(task_result.info),
-                }
-            else:
-                response_data = {
-                    "task_id": task_id,
-                    "state": task_result.state,
-                    "status": "알 수 없는 상태",
-                    "progress": 0,
-                }
-
-            return Response(response_data, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            logger.error(
-                f"일정 태스크 상태 확인 실패 - 태스크 ID: {task_id}, 오류: {e}"
-            )
-            return Response(
-                {"message": "태스크 상태 확인에 실패했습니다.", "error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

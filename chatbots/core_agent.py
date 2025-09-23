@@ -29,166 +29,208 @@ llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=GOOGLE_API_KEY)
 
 
 # User
-def get_user_info(user_id):
+def get_user_info(user_id: int):
     """
-    사용자 정보를 조회하는 함수입니다. 사용자 id를 받아 해당 사용자의 정보를 반환합니다.
+    사용자 정보를 조회하는 함수입니다.
     """
-    user = User.objects.get(id=user_id)
-    serializer = UserSerializer(user)
+    user = User.objects.filter(id=user_id).values(
+        "email", "student_id"
+    ).first()
 
-    return {"message": "확인된 사용자 정보입니다. ", "data": serializer.data}
+    if not user:
+        return {"message": "사용자를 찾을 수 없습니다.", "data": None}
+
+    return {"message": "확인된 사용자 정보입니다.", "data": user}
 
 
-def get_user_studyroutine(user_id):
+def get_user_studyroutine(user_id: int):
     """
-    사용자 학습 루틴 정보를 조회하는 함수입니다. 사용자 id를 받아 해당 사용자의 학습 루틴 정보를 반환합니다.
+    사용자 학습 루틴 정보를 조회하는 함수입니다.
+    반환 값 중 weeks_before_exam은 시험 기간을 시험 몇 주 전으로 여기는지에 대한 정보입니다. 
+    review_type은 사용자의 복습 타입으로 "SAMEDAY"일 경우 학습 당일 복습, 그 외 "MON", "TUE", "WED" 등 요일의 영어명의 앞 세 글자의 조합으로 된 경우, 해당 요일에 복습을 하는 타입입니다. 
     """
-    user = User.objects.get(id=user_id)
-    serializer = StudyRoutineSerializer(user.studyroutine)
+    user = User.objects.filter(id=user_id).first()
+    if not user:
+        return {"message": "학습 루틴 정보를 찾을 수 없습니다.", "data": None}
 
-    return {"message": "확인된 사용자 학습 루틴 정보입니다. ", "data": serializer.data}
+    routines = user.study_routine.all()
+    routine = routines.first()
 
+    if not routine:
+        return {"message": "학습 루틴 정보를 찾을 수 없습니다.", "data": None}
 
-def get_user_score(user_id):
+    routine = routines.first()
+
+    routine_data = {
+        "시험 기간": f"시험 시작 {routine.weeks_before_exam}주 전",
+        "복습 유형": routine.review_type,
+    }
+
+    return {"message": "확인된 사용자 학습 루틴 정보입니다.", "data": routine_data}
+
+def get_user_score(user_id: int):
     """
-    사용자 점수 정보를 조회하는 함수입니다. 사용자 id를 받아 해당 사용자의 점수 정보를 반환합니다.
+    사용자 점수 정보를 조회하는 함수입니다.
     가장 최근 점수 정보가 현재 점수입니다.
     """
-    user = User.objects.get(id=user_id)
-    scores = Score.objects.filter(user=user).order_by("-date")
-    scores_dict = [model_to_dict(score) for score in scores]
+    scores = (
+        Score.objects.filter(user_id=user_id)
+        .order_by("-date")
+        .values("score", "date", "highest", "percentage")
+    )
 
-    return {"message": "확인된 사용자 점수 정보입니다. ", "data": scores_dict}
+    return {"message": "확인된 사용자 점수 정보입니다.", "data": list(scores)}
 
 
 USERS_TOOLS = [get_user_info, get_user_studyroutine, get_user_score]
 
 
 # Schedule
-def create_schedule(
-    user_id, title, scheduled_date, tags=None, deadline=None, is_completed=False
-):
+from django.shortcuts import get_object_or_404
+from django.db import transaction
+
+def create_schedule(user_id, title, scheduled_date, content=None, tags=None, deadline=None, is_completed=False):
     """
     일정을 생성하는 함수 입니다. 사용자 id를 받아 해당 사용자의 일정을 생성합니다.
-    title: 일정의 제목, scheduled_date: 일정 날짜, deadline: 마감 날짜,
+    title: 일정의 제목, content: 일정의 내용, scheduled_date: 일정 날짜, deadline: 마감 날짜,
     날짜 변수들은 YYYY-MM-DD 형식의 문자열,
     tags: 태그 리스트(["태그이름1", "태그이름2",..]), is_completed: 완료 여부
     user_id, title, scheduled_date은 필수
     """
-    user = User.objects.get(id=user_id)
-    schedule = Schedule.objects.create(
-        title=title,
-        scheduled_date=scheduled_date,
-        deadline=deadline,
-        is_completed=is_completed,
-        user=user,
-    )
-    if tags:
-        tag_instances = []
-        for tag_name in tags:
-            tag_instance, created = Tag.objects.get_or_create(name=tag_name, user=user)
-            if created:
-                order = Tag.objects.filter(user=user).count()
-                tag_instance.color = tag_colors[order % len(tag_colors)]
-                tag_instance.save()
-            tag_instances.append(tag_instance)
-        schedule.tag.set(tag_instances)
+    user = get_object_or_404(User.objects.only("id"), id=user_id)
 
-    serializer = ScheduleSerializer(schedule)
+    with transaction.atomic():
+        schedule = Schedule.objects.create(
+            title=title,
+            content=content,
+            scheduled_date=scheduled_date,
+            deadline=deadline,
+            is_completed=is_completed,
+            user=user,
+        )
 
-    return {"message": "일정이 생성되었습니다. ", "data": serializer.data}
+        if tags:
+            existing_tags = Tag.objects.filter(user=user, name__in=tags)
+            existing_names = set(existing_tags.values_list("name", flat=True))
+
+            new_names = [name for name in tags if name not in existing_names]
+
+            created_tags = []
+            if new_names:
+                current_count = Tag.objects.filter(user=user).count()
+                new_tags = [
+                    Tag(
+                        user=user,
+                        name=name,
+                        color=tag_colors[(current_count + idx) % len(tag_colors)],
+                    )
+                    for idx, name in enumerate(new_names)
+                ]
+                created_tags = Tag.objects.bulk_create(new_tags)
+
+            all_tags = list(existing_tags) + created_tags
+            schedule.tag.set(all_tags)
+
+    return {
+        "message": "일정이 생성되었습니다.",
+        "data": ScheduleSerializer(schedule).data,
+    }
 
 
-def list_schedules(user_id, scheduled_date, deadline=None):
+def list_schedules(user_id, scheduled_date, deadline=None, tag_name=None):
     """
     일정 목록을 조회 함수
     사용자 id를 받아 해당 사용자의 일정 목록 반환
     scheduled_date: 일정 날짜, deadline: 마감 날짜, 날짜 변수들은 YYYY-MM-DD 형식의 문자열
     user_id, scheduled_date은 필수
-    scheduled_date가 명시되지 않은 경우 모든 일정의 양이 너무 많기 때문에 시간이 오래 걸림을 안내 후 사용자에게 날짜 명시를 요구하되,
-    그럼에도 전체 일정 조회를 요구한다면 그냥 실행하세요.
+    scheduled_date가 명시되지 않은 경우 사용자에게 날짜 명시를 요구하세요.
     하루 일정만 조회하고 싶은 경우 deadline을 생략, 여러 날짜의 일정을 조회하고 싶을 때 deadline을 지정
     "1일, 3일, 10일 일정 조회해줘"와 같은 요청은 본 함수를 세 번 호출한 후 결과를 취합
     """
-    user = User.objects.get(id=user_id)
-    scheduled_date_instance = datetime.strptime(scheduled_date, "%Y-%m-%d").date()
+    user = get_object_or_404(User.objects.only("id"), id=user_id)
+    
+    scheduled_date_obj = datetime.strptime(scheduled_date, "%Y-%m-%d").date()
 
-    if deadline is not None:
-        deadline_instance = datetime.strptime(deadline, "%Y-%m-%d").date()
-        schedules = Schedule.objects.filter(
-            user=user,
-            scheduled_date__range=[scheduled_date_instance, deadline_instance],
-        )
-    elif scheduled_date and not deadline:
-        schedules = Schedule.objects.filter(
-            user=user, scheduled_date=scheduled_date_instance
-        )
+    schedules_qs = Schedule.objects.filter(user=user)
 
-    if not schedules.exists():
+    if deadline:
+        deadline_obj = datetime.strptime(deadline, "%Y-%m-%d").date()
+        schedules_qs = schedules_qs.filter(scheduled_date__range=[scheduled_date_obj, deadline_obj])
+    else:
+        schedules_qs = schedules_qs.filter(scheduled_date=scheduled_date_obj)
+
+    if tag_name:
+        schedules_qs = schedules_qs.filter(tag__name=tag_name)
+
+    schedules_qs = schedules_qs.select_related("user").prefetch_related("tag")
+
+    if not schedules_qs.exists():
         return None
+    
+    return {
+        "message": "확인된 일정 목록입니다.",
+        "data": ScheduleSerializer(schedules_qs, many=True).data,
+    }
 
-    serializer = GroupedScheduleSerializer(schedules)
 
-    return {"message": "확인된 일정 목록입니다. ", "data": serializer.data}
-
-
-def update_schedule(
-    user_id, schedule_id, title, scheduled_date, tags, deadline, is_completed
-):
+def update_schedule(user_id, schedule_id, title, content, scheduled_date, tags, deadline, is_completed):
     """
     일정을 수정하는 함수 입니다.
     사용자 id와 일정 id를 받아 해당 일정이 사용자의 일정인지 확인한 후 수정합니다.
-    title은 일정의 제목, scheduled_date는 일정 날짜, deadline은 마감 날짜,
+    title: 일정의 제목, content: 일정의 내용, scheduled_date: 일정 날짜, deadline: 마감 날짜,
     날짜 변수들은 YYYY-MM-DD 형식의 문자열,
     tags는 태그 리스트(["태그이름1", "태그이름2",..]), is_completed는 완료 여부입니다.
     모든 매개변수 값이 필수이며, 수정하지 않을 부분은 기존 Schedule의 원본 값을 넘겨주어야 합니다.
     """
-    user = User.objects.get(id=user_id)
-    schedule = Schedule.objects.get(id=schedule_id, user=user)
+    user = get_object_or_404(User.objects.only("id"), id=user_id)
+    schedule = get_object_or_404(Schedule.objects.select_related("user"), id=schedule_id, user=user)
 
-    schedule.title = title
-    schedule.scheduled_date = scheduled_date
-    schedule.deadline = deadline
-    schedule.is_completed = is_completed
-    schedule.save()
+    with transaction.atomic():
+        schedule.title = title
+        schedule.content = content
+        schedule.scheduled_date = scheduled_date
+        schedule.deadline = deadline
+        schedule.is_completed = is_completed
+        schedule.save()
 
-    tag_instances = []
-    for tag_name in tags:
-        tag_instance, created = Tag.objects.get_or_create(name=tag_name, user=user)
-        if created:
-            order = Tag.objects.filter(user=user).count()
-            tag_instance.color = tag_colors[order % len(tag_colors)]
-            tag_instance.save()
-        user = (user,)
+        existing_tags = Tag.objects.filter(user=user, name__in=tags)
+        existing_names = set(existing_tags.values_list("name", flat=True))
+        new_names = [name for name in tags if name not in existing_names]
 
-    tag_instances = []
-    for tag_name in tags:
-        tag_instance, created = Tag.objects.get_or_create(name=tag_name, user=user)
-        if created:
-            order = Tag.objects.filter(user=user).count()
-            tag_instance.color = tag_colors[order % len(tag_colors)]
-            tag_instance.save()
-        tag_instances.append(tag_instance)
-    schedule.tag.set(tag_instances)
+        created_tags = []
+        if new_names:
+            current_count = Tag.objects.filter(user=user).count()
+            new_tags = [
+                Tag(
+                    user=user,
+                    name=name,
+                    color=tag_colors[(current_count + idx) % len(tag_colors)],
+                )
+                for idx, name in enumerate(new_names)
+            ]
+            created_tags = Tag.objects.bulk_create(new_tags)
 
-    serializer = ScheduleSerializer(schedule)
+        all_tags = list(existing_tags) + created_tags
+        schedule.tag.set(all_tags)
 
-    return {"message": "일정이 수정되었습니다. ", "data": serializer.data}
+    return {
+        "message": "일정이 수정되었습니다.",
+        "data": ScheduleSerializer(schedule).data,
+    }
 
 
 def delete_schedules(schedule_id):
     """
     일정을 삭제하는 함수입니다. 일정 id를 받아 해당 일정을 삭제합니다.
     """
-    schedule = Schedule.objects.get(id=schedule_id)
-    schedule.delete()
+    Schedule.objects.get(id=schedule_id).delete()
 
     return {"message": "일정이 삭제되었습니다. "}
 
 
 def import_schedules(user_id):
     """
-    크롤링 API를 호출하여 사용자의 일정을 가져오는 함수입니다.
+    크롤링 API를 호출하여 학사 시스템 일정을 가져오는 함수입니다.
     """
     token = tokens.AccessToken.for_user(User.objects.get(id=user_id))
 
@@ -226,38 +268,41 @@ def create_tag(user_id, name):
 
 def list_tag(user_id):
     """
-    태그 목록을 조회하는 함수 입니다. 사용자 id를 받아 해당 사용자의 태그 목록을 반환합니다."""
-    user = User.objects.get(id=user_id)
-    tags = Tag.objects.filter(user=user)
-    serializer = TagSerializer(tags, many=True)
+    태그 목록을 조회하는 함수입니다.
+    """
+    user = get_object_or_404(User.objects.only("id"), id=user_id)
+    tags = Tag.objects.filter(user=user).only("id", "name", "color")
 
-    return {"message": "확인된 태그 목록입니다. ", "data": serializer.data}
+    return {
+        "message": "확인된 태그 목록입니다.",
+        "data": TagSerializer(tags, many=True).data,
+    }
 
 
 def update_tag(user_id, tag_id, name):
     """
     태그 이름을 수정하는 함수입니다.
-    사용자 id와 태그 id를 받아 해당 태그가 사용자의 태그인지 확인한 후 이름을 수정합니다.
     """
-    token = tokens.AccessToken.for_user(User.objects.get(id=user_id))
+    user = get_object_or_404(User.objects.only("id"), id=user_id)
+    tag = get_object_or_404(Tag.objects.select_for_update(), id=tag_id, user=user)
 
-    headers = {
-        "Authorization": f"Bearer {token}",
+    with transaction.atomic():
+        tag.name = name
+        tag.save(update_fields=["name"])
+
+    return {
+        "message": "태그 이름이 수정되었습니다.",
+        "data": TagSerializer(tag).data,
     }
-    response = requests.put(
-        DOMAIN_URL + f"tags/{tag_id}/", headers=headers, data={"name": name}
-    )
-
-    return {"message": "태그 이름이 수정되었습니다. ", "data": response.json()}
 
 
 def delete_tag(tag_id):
     """
-    태그를 삭제하는 함수입니다. Tag id를 받아 해당 태그를 삭제합니다.
+    태그를 삭제하는 함수입니다.
     """
-    Tag.objects.get(id=tag_id).delete()
+    Tag.objects.filter(id=tag_id).delete()
+    return {"message": "태그가 삭제되었습니다."}
 
-    return {"message": "태그가 삭제되었습니다. "}
 
 
 TAGS_TOOLS = [create_tag, list_tag, update_tag, delete_tag]
@@ -294,33 +339,81 @@ def create_timetable(user_id, subject, day_of_week, start_time, end_time):
     return {"message": "생성된 시간표입니다. ", "data": serializer.data}
 
 
+DAY_MAP = {"sun": 1, "mon": 2, "tue": 3, "wed": 4, "thu": 5, "fri": 6, "sat": 7}
+COLOR_LIST = [
+    "bg-[#E6FEFF] border-[#24B0C9] text-[#24B0C9]",
+    "bg-[#FFBABE] border-[#FF3C6A] text-[#FF3C6A]",
+    "bg-[#FFDDBA] border-[#FF7A3C] text-[#FF7A3C]",
+    "bg-[#FFE7BA] border-[#D78D03] text-[#D78D03]",
+    "bg-[#E9EFFF] border-[#5272E9] text-[#5272E9]",
+]
+
+def time_to_float(t: str) -> float:
+    h, m, s = map(int, t.split(":"))
+    return h + m / 60
+
+def transform_timetables(raw_data):
+    color_map = {}
+    transformed = []
+
+    for item in raw_data:
+        name = item["subject"]
+        if name not in color_map:
+            color_map[name] = COLOR_LIST[len(color_map) % len(COLOR_LIST)]
+
+        transformed.append({
+            "name": name,
+            "col": DAY_MAP.get(item["day_of_week"].lower(), 0),
+            "start_hour": time_to_float(item["start_time"]),
+            "end_hour": time_to_float(item["end_time"]),
+            "color": color_map[name],
+        })
+
+    return transformed
+
+
 def list_timetable(user_id):
     """
-    시간표를 조회하는 함수 입니다. 사용자 id를 받아 해당 사용자의 시간표 목록을 반환합니다.
+    사용자 id를 받아 해당 사용자의 시간표 목록을 반환.
+    Core Agent에서 바로 Render용 데이터 형태로 반환.
     """
     user = User.objects.get(id=user_id)
     timetables = TimeTable.objects.filter(user=user)
     serializer = TimeTableSerializer(timetables, many=True)
 
-    return {"message": "확인된 시간표 목록입니다. ", "data": serializer.data}
+    transformed = transform_timetables(serializer.data)
+
+    return {
+        "message": "회원님의 시간표 목록입니다.",
+        "data": {"timetables": transformed},
+        "render_html": True,
+        "template_name": "timetables_list.html"
+    }
 
 
 def update_timetable(user_id, timetable_id, subject, day_of_week, start_time, end_time):
     """
-    시간표를 수정하는 함수입니다. 사용자 id와 시간표 id를 받아 수정합니다.
-    모든 매개변수 값이 필수 수정하지 않는 부분은 원본 값을 넘겨줘야함
+    시간표를 수정하는 함수입니다.
+    사용자 id와 시간표 id를 받아 수정합니다.
+    모든 매개변수 값이 필수이며, 수정하지 않는 부분은 원본 값을 넘겨줘야 합니다.
     """
-    user = User.objects.get(id=user_id)
-    timetable = TimeTable.objects.get(id=timetable_id, user=user)
-    timetable.subject = subject
-    timetable.day_of_week = day_of_week
-    timetable.start_time = start_time
-    timetable.end_time = end_time
-    timetable.save()
+    timetable = get_object_or_404(
+        TimeTable.objects.select_for_update(),
+        id=timetable_id,
+        user_id=user_id
+    )
 
-    serializer = TimeTableSerializer(timetable)
+    with transaction.atomic():
+        timetable.subject = subject
+        timetable.day_of_week = day_of_week
+        timetable.start_time = start_time
+        timetable.end_time = end_time
+        timetable.save(update_fields=["subject", "day_of_week", "start_time", "end_time"])
 
-    return {"message": "수정된 시간표입니다. ", "data": serializer.data}
+    return {
+        "message": "수정된 시간표입니다.",
+        "data": TimeTableSerializer(timetable).data,
+    }
 
 
 def delete_timetable(timetable_id):
@@ -387,7 +480,7 @@ CORE_AGENT = create_react_agent(
     tools=USERS_TOOLS + SCHEDULES_TOOLS + TAGS_TOOLS + TIMETABLE_TOOLS,
     prompt=f"""
     당신은 대학생의 학습 일정을 관리하는 서비스의 비서 Dulo 입니다. 
-    당신은 사용자의 요청을 분석하여 적절한 툴을 호출하고 적절한 응답과 API의 결과를 전달합니다.  
+    당신은 사용자의 요청을 분석하여 적절한 툴을 호출하고 적절한 응답과 API의 결과를 전달합니다. 
     경우에 따라 툴을 순차적으로 사용하거나 툴 사용의 결과값을 분석해서 응답하세요.
     - 이번주 일정 뭐야? 등의 경우에는 이번주에 해당하는 월요일부터 일요일까지의 일정들을 모두 조회한 후 취합하세요. 단, 기존 API 데이터 반환 형태를 유지하며 취합하세요. 
     - 축구 일정 뭐야? 라는 질의에는 일정을 조회한 후 그 중 제목에 "축구"가 들어가거나, "축구" 태그가 붙은 일정들만 추출하여 보여주는 등 유연하게 대처하세요. 
@@ -396,14 +489,14 @@ CORE_AGENT = create_react_agent(
     오류나 예외 발생 시 발생 했음을 사용자에게 추가 요청을 요구하거나 해결 방법을 알립니다. 해결이 어려울 시 해당 사실을 솔직하게 말합니다.
     반환 형태: 
     {{
-        "message": 사용자 요청에 대한 응답 (확인된 일정은 ~, ~입니다, 일정이 없습니다, 태그가 생성되었습니다... 등),
-        "data": 사용자 요청에 대한 데이터(없을 경우 null),
+        "message": 사용자 요청에 대한 응답 (예시: 확인된 일정은 ~, ~입니다, 일정이 없습니다, 태그가 생성되었습니다... 등) (절대 data 값을 여기에 넣지 마세요. ),
+        "data": 사용자 요청에 대한 툴 사용 반환 데이터 (없을 경우 null),
         "render_html": data가 없거나 사용자에게 보일 필요가 없을 시 false, data가 있는데 사용자에게 시각적으로 보여줄 필요가 있을 때 true, true의 경우 HTML 렌더링 Agent가 호출됨,
-        "template_name": schedules_list.html(날짜별 일정 목록 시각화에 사용되는 템플릿), tags_list.html(태그별 일정 목록 시각화에 사용되는 템플릿), timetables_list.html(시간표 목록 시각화에 사용되는 템플릿) 
-            중 하나입니다. 사용자 질의와 data에 따라 적절히 선택하거나 null로 둘 수 있습니다. render_html이 false일 경우는 무조건 null 입니다.
     }}
+    반환 형태와 관련된 규칙:
+    일정(schedule)과 관련된 툴의 응답 데이터는 날짜별로 정리하여 data에 넣습니다. {{"schedules": "날짜": [{{해당 날짜의 일정 데이터들 ..}}]}}
+    시간표(timetable)과 관련된 툴의 응답 데이터는 그대로 data에 넣습니다. {{"timetablse": [시간표 데이터들..]}}
 
-    이러한 형태 이외의 답변을 **절대로 금지합니다.**
     """,
 )
 
@@ -414,7 +507,7 @@ def run_core_agent(query: str, user_id: int):
         HumanMessage(content=query),
     ]
     response = CORE_AGENT.invoke({"messages": messages})
-
+    print(response)
     # 마지막 AIMessage 찾기
     ai_msg = next(
         (msg for msg in reversed(response["messages"]) if isinstance(msg, AIMessage)),
@@ -426,14 +519,11 @@ def run_core_agent(query: str, user_id: int):
             "message": "AI 응답 없음",
             "data": None,
             "render_html": False,
-            "template_name": False,
         }
     print(ai_msg)
     # ```json ... ``` 코드블록 제거
     content = ai_msg.content
-    print(1)
     match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
-    print(2)
     if match:
         content = match.group(1)
 
@@ -446,7 +536,6 @@ def run_core_agent(query: str, user_id: int):
             "message": ai_msg.content,
             "data": None,
             "render_html": False,
-            "template_name": False,
         }
 
     return content_dict

@@ -6,10 +6,7 @@ from langgraph.graph.message import add_messages
 from langchain.schema import HumanMessage, AIMessage
 
 from .core_agent import run_core_agent
-from .render_agent import generate_html
-from .templates import render_template
-from jinja2 import Environment, FileSystemLoader
-
+from .render_agent import render_template
 
 # ----------------------------
 # 상태 정의
@@ -21,7 +18,6 @@ class State(TypedDict):
     data: Optional[Any]
     render_html: bool
     html: Optional[str]
-    template_name: Optional[str]
 
 
 # ----------------------------
@@ -47,8 +43,17 @@ def core_agent(state: State) -> State:
 # Render Agent 노드
 # ----------------------------
 def render_agent(state: State) -> State:
-    html_response = generate_html(state["query"], state["data"], state["template_name"])
-    print(html_response)
+    template_name = ""
+    data = state["data"]
+    data_type = list(data.keys())[0]
+    print(data_type)
+    if data_type == "schedules":
+        template_name = "schedules_list.html"
+    elif data_type == "timetables":
+        template_name = "timetables_list.html"
+    else:
+        return state
+    html_response = render_template(template_name, data)
     state["html"] = html_response
 
     return state
@@ -94,7 +99,6 @@ def run_agent_graph(query: str, user_id: int) -> State:
         "data": None,
         "render_html": False,
         "html": None,
-        "template_name": None,
     }
 
     return compiled_graph.invoke(initial_state)

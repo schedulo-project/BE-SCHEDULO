@@ -1,53 +1,54 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>시간표 미리보기</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50 p-8 font-sans">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>시간표 미리보기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-50 p-8 font-sans">
+    <h1 class="text-3xl font-bold mb-6 text-center">시간표 미리보기</h1>
 
-  <h1 class="text-3xl font-bold mb-6 text-center">시간표 미리보기</h1>
-
-  <div class="w-full overflow-x-auto relative">
-    <div class="flex">
-      <!-- 시간 컬럼 -->
-      <div class="w-[70px] flex-shrink-0 relative">
-        <div class="h-10"></div>
-        {% for hour in range(8, 20) %}
-        <div class="h-[64px] flex items-start justify-start pl-2 text-gray-400">
-          {{ "%02d:00"|format(hour) }}
-        </div>
-        {% endfor %}
-      </div>
-
-      <!-- 시간표 메인 -->
-      <div class="flex-1 min-w-[600px] relative h-[768px]">
-        <!-- 요일 헤더 -->
-        <div class="grid grid-cols-7 text-center text-gray-400 h-10">
-          {% for day in ["일","월","화","수","목","금","토"] %}
-          <div>{{ day }}</div>
+    <div class="w-full overflow-x-auto relative">
+      <div class="flex">
+        <!-- 시간 컬럼 -->
+        <div class="w-[70px] flex-shrink-0 relative">
+          <div class="h-10"></div>
+          {% for hour in range(8, 24) %}
+          <div class="h-[64px] flex items-start pl-2 text-gray-400">
+            {{ "%02d:00"|format(hour) }}
+          </div>
           {% endfor %}
         </div>
 
-        <!-- 시간표 배경 (선) -->
-        {% for i in range(12) %}
-        <div class="absolute left-0 right-0 border-t border-gray-200" style="top: {{ i*64 + 40 }}px;"></div>
-        {% endfor %}
+        <!-- 시간표 메인 -->
+        <div class="flex-1 relative h-auto">
+          <!-- 요일 헤더 -->
+          <div class="grid grid-cols-7 text-center text-gray-400 h-10">
+            {% for day in ["일","월","화","수","목","금","토"] %}
+            <div>{{ day }}</div>
+            {% endfor %}
+          </div>
 
-        <!-- 수업 카드 -->
-        {% for item in timetables %}
-        {% set top = ((item.start_hour - 8) * 64 + 40) %}
-        {% set height = (item.end_hour - item.start_hour) * 64 %}
-        <div class="absolute rounded-xl px-2 text-xs font-medium border flex justify-center items-center text-center {{ item.color }}"
-            style="top: {{ top }}px; height: {{ height }}px; width:14.2857%; left: {{ (item.col-1)*14.2857 }}%;">
-          {{ item.name }}
+          <!-- 시간표 본문 wrapper -->
+          <div class="relative">
+            <!-- 시간표 배경 (줄 반복) -->
+            {% for i in range(16) %}
+            <div class="border-t border-gray-200 h-[64px]"></div>
+            {% endfor %}
+
+            <!-- 수업 카드 -->
+            {% for item in timetables %}
+            {% set top = (item.start_hour - 8) * 64 %}
+            {% set height = (item.end_hour - item.start_hour) * 64 %}
+            <div class="absolute rounded-xl px-2 text-xs font-medium border flex justify-center items-center text-center {{ item.color }}"
+                 style="top: {{ top }}px; height: {{ height }}px; width:14.2857%; left: {{ (item.col-1) * 14.2857 }}%;">
+              {{ item.name }}
+            </div>
+            {% endfor %}
+          </div>
         </div>
-        {% endfor %}
       </div>
     </div>
-  </div>
-
-</body>
+  </body>
 </html>

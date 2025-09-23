@@ -7,6 +7,7 @@ from langchain.schema import HumanMessage, AIMessage
 
 from .core_agent import run_core_agent
 from .render_agent import render_template
+from .models import Chatting
 
 # ----------------------------
 # 상태 정의
@@ -26,33 +27,30 @@ class State(TypedDict):
 def core_agent(state: State) -> State:
     # Core Agent 실행
     core_response = run_core_agent(state["query"], state["user_id"])
-    print(core_response)
 
     # 메시지 누적
     state["messages"] = [AIMessage(content=core_response.get("message", ""))]
     state["data"] = core_response.get("data")
     state["render_html"] = core_response.get("render_html", False)
 
-    # core_agent가 템플릿 이름까지 결정하도록 (없으면 None)
-    state["template_name"] = core_response.get("template_name", None)
-
     return state
 
 
 # ----------------------------
-# Render Agent 노드
+# Render 노드
 # ----------------------------
 def render_agent(state: State) -> State:
     template_name = ""
     data = state["data"]
     data_type = list(data.keys())[0]
-    print(data_type)
+
     if data_type == "schedules":
         template_name = "schedules_list.html"
     elif data_type == "timetables":
         template_name = "timetables_list.html"
     else:
         return state
+    
     html_response = render_template(template_name, data)
     state["html"] = html_response
 
@@ -100,5 +98,7 @@ def run_agent_graph(query: str, user_id: int) -> State:
         "render_html": False,
         "html": None,
     }
+    response = compiled_graph.invoke(initial_state)
+    Chatting.objects.create(query=response["query"], answer=str(response["messages"][0]), data=response["data"], user_id=user_id).save()
 
-    return compiled_graph.invoke(initial_state)
+    return response

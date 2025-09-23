@@ -6,4 +6,5 @@ class Chatting(models.Model):
     query = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    answer = models.JSONField()
+    answer = models.JSONField(null=True)
+    data = models.JSONField(null=True)

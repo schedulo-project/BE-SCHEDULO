@@ -2,9 +2,11 @@ import os
 import re
 import json
 import requests
+from datetime import datetime
 from dotenv import load_dotenv
+
 from django.utils import timezone
-from django.forms.models import model_to_dict
+from rest_framework_simplejwt import tokens
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
@@ -15,8 +17,9 @@ from users.serializers import *
 from schedules.models import *
 from schedules.serializers import *
 from schedules.views import tag_colors
-from rest_framework_simplejwt import tokens
-from datetime import datetime
+from chatbots.models import Chatting
+from chatbots.serializers import ChattingSerializer
+
 
 load_dotenv()
 
@@ -24,7 +27,6 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 LOCAL_URL = os.getenv("LOCAL_URL")
 DOMAIN_URL = os.getenv("LOCAL_URL")
 
-# llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", api_key=GOOGLE_API_KEY)
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=GOOGLE_API_KEY)
 
 
@@ -173,45 +175,52 @@ def list_schedules(user_id, scheduled_date, deadline=None, tag_name=None):
     }
 
 
-def update_schedule(user_id, schedule_id, title, content, scheduled_date, tags, deadline, is_completed):
+def update_schedule(user_id, schedule_id, title=None, content=None, scheduled_date=None, tags=None, deadline=None, is_completed=None):
     """
     일정을 수정하는 함수 입니다.
     사용자 id와 일정 id를 받아 해당 일정이 사용자의 일정인지 확인한 후 수정합니다.
     title: 일정의 제목, content: 일정의 내용, scheduled_date: 일정 날짜, deadline: 마감 날짜,
     날짜 변수들은 YYYY-MM-DD 형식의 문자열,
     tags는 태그 리스트(["태그이름1", "태그이름2",..]), is_completed는 완료 여부입니다.
-    모든 매개변수 값이 필수이며, 수정하지 않을 부분은 기존 Schedule의 원본 값을 넘겨주어야 합니다.
+    tags가 있다면, 일정의 기존 태그들은 모두 사라지고 tags로 바뀝니다. 기존 태그는 schedule_id로 일정을 조회하고 태그 데이터를 확인하여 사용하세요. 
+    - 예시: 태그1과는 이미 연결되어있는데 태그2를 추가하고 싶다 -> 일정 조회 후 태그값 조회하여 태그1과 연결된 것 확인 -> tags=["태그1","태그2"] 매개변수 전달, 삭제도 마찬가지
     """
     user = get_object_or_404(User.objects.only("id"), id=user_id)
     schedule = get_object_or_404(Schedule.objects.select_related("user"), id=schedule_id, user=user)
 
     with transaction.atomic():
-        schedule.title = title
-        schedule.content = content
-        schedule.scheduled_date = scheduled_date
-        schedule.deadline = deadline
-        schedule.is_completed = is_completed
+        if title is not None:
+            schedule.title = title
+        if content is not None:
+            schedule.content = content
+        if scheduled_date is not None:
+            schedule.scheduled_date = scheduled_date
+        if deadline is not None:
+            schedule.deadline = deadline
+        if is_completed is not None:
+            schedule.is_completed = is_completed
+
         schedule.save()
+        if tags:
+            existing_tags = Tag.objects.filter(user=user, name__in=tags)
+            existing_names = set(existing_tags.values_list("name", flat=True))
+            new_names = [name for name in tags if name not in existing_names]
 
-        existing_tags = Tag.objects.filter(user=user, name__in=tags)
-        existing_names = set(existing_tags.values_list("name", flat=True))
-        new_names = [name for name in tags if name not in existing_names]
+            created_tags = []
+            if new_names:
+                current_count = Tag.objects.filter(user=user).count()
+                new_tags = [
+                    Tag(
+                        user=user,
+                        name=name,
+                        color=tag_colors[(current_count + idx) % len(tag_colors)],
+                    )
+                    for idx, name in enumerate(new_names)
+                ]
+                created_tags = Tag.objects.bulk_create(new_tags)
 
-        created_tags = []
-        if new_names:
-            current_count = Tag.objects.filter(user=user).count()
-            new_tags = [
-                Tag(
-                    user=user,
-                    name=name,
-                    color=tag_colors[(current_count + idx) % len(tag_colors)],
-                )
-                for idx, name in enumerate(new_names)
-            ]
-            created_tags = Tag.objects.bulk_create(new_tags)
-
-        all_tags = list(existing_tags) + created_tags
-        schedule.tag.set(all_tags)
+            all_tags = list(existing_tags) + created_tags
+            schedule.tag.set(all_tags)
 
     return {
         "message": "일정이 수정되었습니다.",
@@ -395,7 +404,6 @@ def update_timetable(user_id, timetable_id, subject, day_of_week, start_time, en
     """
     시간표를 수정하는 함수입니다.
     사용자 id와 시간표 id를 받아 수정합니다.
-    모든 매개변수 값이 필수이며, 수정하지 않는 부분은 원본 값을 넘겨줘야 합니다.
     """
     timetable = get_object_or_404(
         TimeTable.objects.select_for_update(),
@@ -404,11 +412,16 @@ def update_timetable(user_id, timetable_id, subject, day_of_week, start_time, en
     )
 
     with transaction.atomic():
-        timetable.subject = subject
-        timetable.day_of_week = day_of_week
-        timetable.start_time = start_time
-        timetable.end_time = end_time
-        timetable.save(update_fields=["subject", "day_of_week", "start_time", "end_time"])
+        if subject is not None:
+            timetable.subject = subject
+        if subject is not None:
+            timetable.day_of_week = day_of_week
+        if start_time is not None:
+            timetable.start_time = start_time
+        if end_time is not None:
+            timetable.end_time = end_time
+
+        timetable.save()
 
     return {
         "message": "수정된 시간표입니다.",
@@ -484,30 +497,35 @@ CORE_AGENT = create_react_agent(
     경우에 따라 툴을 순차적으로 사용하거나 툴 사용의 결과값을 분석해서 응답하세요.
     - 이번주 일정 뭐야? 등의 경우에는 이번주에 해당하는 월요일부터 일요일까지의 일정들을 모두 조회한 후 취합하세요. 단, 기존 API 데이터 반환 형태를 유지하며 취합하세요. 
     - 축구 일정 뭐야? 라는 질의에는 일정을 조회한 후 그 중 제목에 "축구"가 들어가거나, "축구" 태그가 붙은 일정들만 추출하여 보여주는 등 유연하게 대처하세요. 
+    - 오늘 야구하기 일정에서 태그를 운동하기 에서 개인일정 으로 바꿔줘
     그럼에도 툴을 사용하여 처리할 수 없는 요청이나 사용자가 기능 실행이 아닌 페이지 위치 안내를 요구할 경우 {PAGE_STRUCTURE}를 참고하여 페이지 위치를 안내합니다.
-    사용자 정보는 사용자 ID를 참고하고, 오늘 날짜는 {timezone.localtime(timezone.now()).strftime("%Y-%m-%d")} 입니다.
+    사용자 정보는 사용자 ID를 참고하고, **오늘 날짜는 {timezone.localtime(timezone.now()).strftime("%Y-%m-%d")} 입니다. ** 날짜를 헷갈리지 마세요.
     오류나 예외 발생 시 발생 했음을 사용자에게 추가 요청을 요구하거나 해결 방법을 알립니다. 해결이 어려울 시 해당 사실을 솔직하게 말합니다.
     반환 형태: 
     {{
-        "message": 사용자 요청에 대한 응답 (예시: 확인된 일정은 ~, ~입니다, 일정이 없습니다, 태그가 생성되었습니다... 등) (절대 data 값을 여기에 넣지 마세요. ),
+        "message": 사용자 요청에 대한 응답 (예시: 확인된 일정은 A일정, B일정 입니다, 일정이 없습니다, A태그가 생성되었습니다... 등) (절대 data 값을 여기에 넣지 마세요. ),
         "data": 사용자 요청에 대한 툴 사용 반환 데이터 (없을 경우 null),
         "render_html": data가 없거나 사용자에게 보일 필요가 없을 시 false, data가 있는데 사용자에게 시각적으로 보여줄 필요가 있을 때 true, true의 경우 HTML 렌더링 Agent가 호출됨,
     }}
     반환 형태와 관련된 규칙:
     일정(schedule)과 관련된 툴의 응답 데이터는 날짜별로 정리하여 data에 넣습니다. {{"schedules": "날짜": [{{해당 날짜의 일정 데이터들 ..}}]}}
-    시간표(timetable)과 관련된 툴의 응답 데이터는 그대로 data에 넣습니다. {{"timetablse": [시간표 데이터들..]}}
+    시간표(timetable)과 관련된 툴의 응답 데이터는 그대로 data에 넣습니다. {{"timetables": [시간표 데이터들..]}}
 
+    당신은 사용자와의 이전 대화 10개를 기억합니다. 사용자 질의에 "대화 내역"을 반드시 참고하세요. 
+    예시: 사용자가 오늘 일정 조회 요청 후 세번째 일정을 지워달라고 하면, 이전 대화의 데이터에서 일정 리스트 data 중 세번째 값의 id를 사용해서 일정 삭제
     """,
 )
 
 
 def run_core_agent(query: str, user_id: int):
+    history = ChattingSerializer(Chatting.objects.order_by('-created_at')[:10], many=True).data
+    print(history)
     messages = [
-        SystemMessage(content=f"사용자 ID: {user_id}"),
+        SystemMessage(content=f"사용자 ID: {user_id}, 대화 내역: {history}"),
         HumanMessage(content=query),
     ]
     response = CORE_AGENT.invoke({"messages": messages})
-    print(response)
+    
     # 마지막 AIMessage 찾기
     ai_msg = next(
         (msg for msg in reversed(response["messages"]) if isinstance(msg, AIMessage)),

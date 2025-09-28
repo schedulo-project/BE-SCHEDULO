@@ -75,7 +75,7 @@ fix(UserLoginAPIView): password 인코딩 수정
 DB에 User의 password를 인코딩하지 않고 저장되는 오류 수정
 ```
 
-###Commit Type
+Commit Type
 - Header Type 종류
   - feat: 새로운 기능을 추가
   - fix: 버그 수정

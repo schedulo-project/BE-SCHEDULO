@@ -88,5 +88,5 @@ DB에 User의 password를 인코딩하지 않고 저장되는 오류 수정
 | 이름   | 역할 | GitHub |
 | ------ | ---- | ------ |
 | 주현지 | Backend, Crawling, Notifications, User | [@zoohj](https://github.com/zoohj) |
-| 백승우 | Backend, AI Agent, Visualization, Schedule    | [@s2vngwxx](https://github.com/s2vngwxx) |
+| 백승우 | Backend, AI Agent, Electron, Schedule  | [@s2vngwxx](https://github.com/s2vngwxx) |
 

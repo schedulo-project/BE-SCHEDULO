@@ -1,7 +1,7 @@
 # BE-SCHEDULO
 Schedulo 백엔드 레포지토리
 
-주요 기능: 사용자 인증 및 크롤링, 시간표 및 일정 관리, 알림 발송(FCM, Web Push), 챗봇 기능
+주요 기능: 사용자 인증 및 크롤링, 시간표 및 일정 관리, 알림 발송, 챗봇
 
 ---
 
@@ -15,7 +15,15 @@ chatbots/       # 챗봇 기능
 logs/           # 애플리케이션 로그 저장
 data/           # Celery Beat 스케줄 DB
 ```
-
+---
+## 🚀 Detail Backend Tech Stack
+- **Framework**: Django REST Framework  
+- **Database**: MySQL  
+- **Task Queue**: Celery + Redis  
+- **Crawling**: Selenium  
+- **Notifications**: Firebase Cloud Messaging (FCM), Web Push  
+- **Chatbot**: LangChain, Gemini
+- **Deployment**: Nginx + uWSGI, systemd, Ubuntu, AWS(EC2, RDS)
 ---
 ## ⚙️ Local Development
 ```bash
@@ -61,23 +69,3 @@ Commit Type
   - fix: 버그 수정
   - chore : 자잘한 수정, 패키지 관련, 설정 관련 추가 및 변경
   - refactor: 코드 리팩토링
-
----
-## Deployment
-- WSGI: uWSGI
-- Proxy: Nginx
-- Process Manager: systemd
-
-
-## Tech Stack
-- **Framework**: Django REST Framework  
-- **Database**: MySQL  
-- **Task Queue**: Celery + Redis  
-- **Crawling**: Selenium  
-- **Notifications**: Firebase Cloud Messaging (FCM), Web Push  
-- **Chatbot**: LangChain, Gemini
-- **Deployment**: Nginx + uWSGI, systemd, Ubuntu, AWS(EC2, RDS)
-
-## Service Architecture
-
-

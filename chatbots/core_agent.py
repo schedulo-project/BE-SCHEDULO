@@ -27,7 +27,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 LOCAL_URL = os.getenv("LOCAL_URL")
 DOMAIN_URL = os.getenv("DOMAIN_URL")
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", api_key=GOOGLE_API_KEY)
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=GOOGLE_API_KEY)
 
 
 # User
@@ -492,69 +492,79 @@ def settings_tools():
     pass
 
 
+# 페이지 구조 (툴 불가 시 안내용)
 PAGE_STRUCTURE = """
-- 홈 페이지 (버튼 위치: 좌측 상단 "달력" 버튼)
-    - 페이지 구성
-    - 월별, 주별 캘린더 (일정 시각화)
-    - 할 일 목록 (특정 날짜의 일정)
-    - 일정 CRUD, 완료 처리 (제목, 내용, 태그, 날짜나 기간을 정하여 일정을 등록하고 일정을 관리)
-    - 일정 연동 (샘물 포털만 가능, 시간표에 따른 일정 가져옴)
-- 태그별 일정 조회 페이지 (일정을 태그별로 조회 가능) (버튼 위치: "달력" 버튼 아래의 "태그" 버튼)
-- 포커스 타이머 (할 일에 집중할 수 있도록 타이머 기능 제공) (버튼 위치: "태그" 버튼 아래의 "포커스타이머" 버튼)
-- 시간표 (직접 입력 혹은 샘물 포털 연동 가능) (버튼 위치: "포커스타이머" 버튼 아래의 "시간표" 버튼)
-- 설정 (버튼 위치: "시간표" 버튼 아래의 "설정" 버튼)
-    - 프로필
-        - 개인정보 수정 (비밀번호 수정, 샘물 정보 수정, 회원 탈퇴)
-        - 알림 설정 (아침, 저녁마다 오늘의 일정에 대한 알림을 보내주는 기능에 대한 On/Off)
-        - 공부 계획 수정 (자신만의 시험 기간 - 시험 공부 일정 생성에 사용, 복습 주기 - 복습 주기와 시간표에 따라 복습 일정 자동)
-    - 통계 및 시각화 (일정 완료율에 대한 점수 및 순위 제공)
-- 시험 공부 일정 생성 (시험 기간과 과목, 공부량, 과목별 공부 비율 등을 입력하면 시험 공부 일정 자동 생성) (버튼 위치: "설정" 버튼 아래의 "시험 계획 설정" 버튼)
-- 로그아웃 (버튼 위치: 좌측 최하단의 로그아웃 버튼)
+- 홈 페이지 (좌측 상단 "달력" 버튼)
+    - 월별/주별 캘린더 (일정 시각화)
+    - 할 일 목록 (특정 날짜 일정)
+    - 일정 CRUD 및 완료 처리 (제목/내용/태그/기간 지정 가능)
+    - 샘물 포털 연동 (시간표 기반 일정 가져오기)
+- 태그별 일정 조회 (좌측 "태그" 버튼)
+- 포커스 타이머 (좌측 "포커스타이머" 버튼)
+- 시간표 (직접 입력 또는 샘물 연동, 좌측 "시간표" 버튼)
+- 설정 (좌측 "설정" 버튼)
+    - 프로필 관리 (비밀번호, 샘물 정보, 회원 탈퇴)
+    - 알림 설정 (아침/저녁 일정 알림 On/Off)
+    - 공부 계획 (시험 기간, 복습 주기)
+    - 통계 (완료율, 순위 제공)
+- 시험 공부 일정 자동 생성 (좌측 "시험 계획 설정" 버튼)
+- 로그아웃 (좌측 하단 "로그아웃" 버튼)
 """
 
+# 최적화된 SYSTEM_PROMPT
+SYSTEM_PROMPT = f"""
+너는 대학생 학습/일정 관리 비서 Dulo이다.
+너의 아버지이자 개발자는 백승우다.
+규칙:
+- 사용자의 요청을 분석해 적절한 툴을 호출하고 필요 시 여러 툴을 순차적으로 사용한다.
+- 일정 조회 시: 주간/태그/키워드 조건에 맞게 취합한다.
+- 일정 응답은 날짜별로 묶어 {{"schedules": {{"날짜": [데이터...]}}}} 형식 사용.
+- 시간표 응답은 그대로 data에 넣는다 (예: {{"timetables": [...]}}).
+- 툴로 처리 불가하거나 위치 안내 요청일 경우 PAGE_STRUCTURE 참고.
+- 출력은 JSON만 허용: {{
+    "message": "사용자에게 보여줄 응답",
+    "data": 툴 반환 데이터 or null,
+    "render_html": true/false // data의 key가 schedules거나 timetables일 경우 true
+  }}
+- message에는 자연어 응답만, data에는 가공된 툴 응답만 넣는다.
+- 오늘 날짜는 {timezone.localtime(timezone.now()).strftime("%Y-%m-%d")} 기준으로 처리한다.
+- 최근 10개 대화 내역을 반드시 참고하여 맥락을 유지한다.
+"""
+
+USER_PROMPT_TEMPLATE = """
+[사용자 요청]
+{query}
+
+[최근 대화 요약]
+{history}
+"""
+
+# LLM 초기화
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-pro", api_key=os.getenv("GOOGLE_API_KEY")
+)
+
+# CORE_AGENT 생성
 CORE_AGENT = create_react_agent(
     model=llm,
     tools=USERS_TOOLS + SCHEDULES_TOOLS + TAGS_TOOLS + TIMETABLE_TOOLS,
-    prompt=f"""
-    당신은 대학생의 학습 일정을 관리하는 서비스의 비서 Dulo 입니다. 
-    당신의 제작자이자 아버지는 "백승우" 입니다. 
-    당신은 사용자의 요청을 분석하여 적절한 툴을 호출하고 적절한 응답과 API의 결과를 전달합니다. 
-    경우에 따라 툴을 순차적으로 사용하거나 툴 사용의 결과값을 분석해서 응답하세요. 
-    - 이번주 일정 뭐야? 등의 경우에는 이번주에 해당하는 월요일부터 일요일까지의 일정들을 모두 조회한 후 취합하세요. 단, 기존 API 데이터 반환 형태를 유지하며 취합하세요. 
-    - 축구 일정 뭐야? 라는 질의에는 일정을 조회한 후 그 중 제목에 "축구"가 들어가거나, "축구" 태그가 붙은 일정들만 추출하여 보여주는 등 유연하게 대처하세요. 
-    - 오늘 야구하기 일정에서 태그를 운동하기 에서 개인일정 으로 바꿔줘
-    그럼에도 툴을 사용하여 처리할 수 없는 요청이나 사용자가 기능 실행이 아닌 페이지 위치 안내를 요구할 경우 {PAGE_STRUCTURE}를 참고하여 페이지 위치를 안내합니다.
-    사용자 정보는 사용자 ID를 참고하고, **오늘 날짜는 {timezone.localtime(timezone.now()).strftime("%Y-%m-%d")} 입니다. ** 날짜를 헷갈리지 마세요.
-    오류나 예외 발생 시 발생 했음을 사용자에게 추가 요청을 요구하거나 해결 방법을 알립니다. 해결이 어려울 시 해당 사실을 솔직하게 말합니다.
-    반환 형태: 
-    {{
-        "message": 사용자 요청에 대한 응답 (예시: 확인된 일정은 A일정, B일정 입니다, 일정이 없습니다, A태그가 생성되었습니다... 등) (절대 data 값을 여기에 넣지 마세요. 마크다운 문법(*이나 **)을 절대 사용하지 말고 줄바꿈만 적절히 활용하세요. ),
-        "data": 사용자 요청에 대한 툴 사용 반환 데이터 (없을 경우 null),
-        "render_html": data가 없거나 사용자에게 보일 필요가 없을 시 false, data가 있는데 사용자에게 시각적으로 보여줄 필요가 있을 때 true, true의 경우 HTML 렌더링 Agent가 호출됨,
-    }}
-    반환 형태와 관련된 규칙:
-    일정(schedule)과 관련된 툴의 응답 데이터는 날짜별로 정리하여 data에 넣습니다. {{"schedules": "날짜": [{{해당 날짜의 일정 데이터들 ..}}]}}
-    시간표(timetable)과 관련된 툴의 응답 데이터는 그대로 data에 넣습니다. {{"timetables": [시간표 데이터들..]}}
-
-
-    당신은 사용자와의 이전 대화 10개를 기억합니다. 사용자 질의에 "대화 내역"을 반드시 참고하세요. 
-    예시: 사용자가 오늘 일정 조회 요청 후 세번째 일정을 지워달라고 하면, 이전 대화의 데이터에서 일정 리스트 data 중 세번째 값의 id를 사용해서 일정 삭제
-    """,
+    prompt=SYSTEM_PROMPT,
 )
 
 
+# 실행 함수
 def run_core_agent(query: str, user_id: int):
     history = ChattingSerializer(
         Chatting.objects.order_by("-created_at")[:10], many=True
     ).data
-    print(history)
+
     messages = [
-        SystemMessage(content=f"사용자 ID: {user_id}, 대화 내역: {history}"),
-        HumanMessage(content=query),
+        SystemMessage(content=f"사용자 ID: {user_id}"),
+        HumanMessage(content=USER_PROMPT_TEMPLATE.format(query=query, history=history)),
     ]
+
     response = CORE_AGENT.invoke({"messages": messages})
 
-    # 마지막 AIMessage 찾기
     ai_msg = next(
         (msg for msg in reversed(response["messages"]) if isinstance(msg, AIMessage)),
         None,
@@ -562,18 +572,17 @@ def run_core_agent(query: str, user_id: int):
 
     if ai_msg is None:
         return {
+            "query": query,
             "message": "AI 응답 없음",
             "data": None,
             "render_html": False,
         }
-    print(ai_msg)
-    # ```json ... ``` 코드블록 제거
+
     content = ai_msg.content
     match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
     if match:
         content = match.group(1)
 
-    # JSON 디코딩
     try:
         content_dict = json.loads(content)
     except json.JSONDecodeError:

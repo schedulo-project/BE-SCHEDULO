@@ -25,7 +25,7 @@ load_dotenv()
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 LOCAL_URL = os.getenv("LOCAL_URL")
-DOMAIN_URL = os.getenv("LOCAL_URL")
+DOMAIN_URL = os.getenv("DOMAIN_URL")
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", api_key=GOOGLE_API_KEY)
 

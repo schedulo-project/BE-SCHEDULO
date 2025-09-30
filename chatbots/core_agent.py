@@ -267,7 +267,7 @@ def import_schedules(user_id):
     headers = {
         "Authorization": f"Bearer {token}",
     }
-    response = requests.get(DOMAIN_URL + "crawling/", headers=headers)
+    response = requests.get(DOMAIN_URL + "users/crawling/", headers=headers)
 
     return {"message": "학사 시스템 연동이 실행되었습니다. ", "data": response.json()}
 
@@ -291,7 +291,9 @@ def create_tag(user_id, name):
     headers = {
         "Authorization": f"Bearer {token}",
     }
-    response = requests.post(DOMAIN_URL + "tags/", headers=headers, data={"name": name})
+    response = requests.post(
+        DOMAIN_URL + "schedules/tags/", headers=headers, data={"name": name}
+    )
 
     return {"message": "태그가 생성되었습니다. ", "data": response.json()}
 
@@ -471,7 +473,7 @@ def import_timetable(user_id):
     headers = {
         "Authorization": f"Bearer {token}",
     }
-    response = requests.get(DOMAIN_URL + "timetable/status/", headers=headers)
+    response = requests.get(DOMAIN_URL + "users/getTimeTable/", headers=headers)
 
     return {"message": "학사 시스템 연동이 실행되었습니다. ", "data": response.json()}
 

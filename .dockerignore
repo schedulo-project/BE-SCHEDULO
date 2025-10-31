@@ -1,0 +1,80 @@
+# Python / Django
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pot
+*.mo
+*.sqlite3
+db.sqlite3-journal
+local_settings.py
+media/
+staticfiles/
+celerybeat-schedule*
+celerybeat.pid
+data/
+
+# 환경설정 / 민감 정보
+.env
+serviceAccountKey.json
+
+# 가상환경
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# 빌드 관련
+build/
+dist/
+*.egg-info/
+*.egg
+.wheels/
+*.manifest
+*.spec
+
+# IDE / 에디터
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+.history/
+.idea/
+.spyderproject
+.spyproject
+.ropeproject
+
+# OS 관련
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.stackdump
+
+# 노트북 / 분석 파일
+.ipynb_checkpoints/
+
+# 캐시
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+cython_debug/
+__pypackages__/
+
+# 브라우저 관련
+google-chrome-stable_current_*
+*.deb
+
+

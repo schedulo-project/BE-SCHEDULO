@@ -111,6 +111,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:443",
     "http://127.0.0.1:5174",
     "https://www.schedulo.co.kr",
+    "http://175.106.98.19:80",
+    "https://175.106.98.19:443",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -137,7 +139,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 STATIC_URL = "/static/"
 
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, "static"),  # 정적 파일 경로 설정
+    os.path.join(BASE_DIR, "static"),  # ?�적 ?�일 경로 ?�정
 ]
 
 from celery.schedules import crontab
@@ -148,27 +150,27 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(
             hour=1,
             minute=0,
-            day_of_week=1,  # 일요일 UTC → 월요일 KST
+            day_of_week=1,  # ?�요??UTC ???�요??KST
         ),
     },
     "score-api": {
         "task": "users.tasks.calculate_score",
-        "schedule": crontab(hour=23, minute=00),  # 매일 23시 00분에 실행
+        "schedule": crontab(hour=23, minute=00),  # 매일 23??00분에 ?�행
     },
     "notify_today_schedule_morning": {
         "task": "notifications.tasks.notify_today_schedule",
-        "schedule": crontab(hour=10, minute=0),  # 매일 10시 00분에 실행
-        "args": ("📅 오늘의 일정입니다 :)",),
+        "schedule": crontab(hour=10, minute=0),  # 매일 10??00분에 ?�행
+        "args": ("?�� ?�늘???�정?�니??:)",),
     },
     "notify_today_schedule_night": {
         "task": "notifications.tasks.notify_today_schedule",
-        "schedule": crontab(hour=20, minute=0),  # 매일 20시 00분에 실행
-        # "schedule": crontab(minute="*/1"),  # test용으로 매 분마다 실행
-        "args": ("📅 오늘 남은 일정을 확인하세요!",),
+        "schedule": crontab(hour=20, minute=0),  # 매일 20??00분에 ?�행
+        # "schedule": crontab(minute="*/1"),  # test?�으�?�?분마???�행
+        "args": ("?�� ?�늘 ?��? ?�정???�인?�세??",),
     },
     "notify_deadline_schedule": {
         "task": "notifications.tasks.notify_deadline_schedule",
-        "schedule": crontab(hour=22, minute=0),  # 매일 10시 00분에 실행
+        "schedule": crontab(hour=22, minute=0),  # 매일 10??00분에 ?�행
     },
 }
 
@@ -226,7 +228,7 @@ AUTH_USER_MODEL = "users.User"
 
 LOGGING = {
     "version": 1,
-    "disable_existing_loggers": False,  # 기존 로거 비활성화하지 않음(활성화)
+    "disable_existing_loggers": False,  # 기존 로거 비활?�화?��? ?�음(?�성??
     "filters": {
         "require_debug_false": {
             "()": "django.utils.log.RequireDebugFalse",
@@ -235,7 +237,7 @@ LOGGING = {
             "()": "django.utils.log.RequireDebugTrue",
         },
     },
-    # format 설정
+    # format ?�정
     "formatters": {
         "django.server": {
             "()": "django.utils.log.ServerFormatter",
@@ -248,33 +250,32 @@ LOGGING = {
         },
     },
     "handlers": {
-        # 콘솔 핸들러
-        "console": {
+        # 콘솔 ?�들??        "console": {
             "level": "DEBUG",
             "filters": ["require_debug_true"],
             "class": "logging.StreamHandler",
             "formatter": "standard",
         },
-        # Django 서버 로그
+        # Django ?�버 로그
         "django.server": {
             "level": "INFO",
             "class": "logging.StreamHandler",
             "formatter": "django.server",
         },
-        # 이메일로 관리자에게 오류 전송
+        # ?�메?�로 관리자?�게 ?�류 ?�송
         "mail_admins": {
             "level": "ERROR",
             "filters": ["require_debug_false"],
             "class": "django.utils.log.AdminEmailHandler",
         },
-        # 파일 핸들러 (5MB 크기 제한, 백업 5개)
+        # ?�일 ?�들??(5MB ?�기 ?�한, 백업 5�?
         "file": {
             "level": "DEBUG",
             "encoding": "utf-8",
             "filters": ["require_debug_false"],
             "class": "logging.handlers.RotatingFileHandler",
             "filename": BASE_DIR / "logs/django.log",
-            "maxBytes": 1024 * 1024 * 5,  # 로그 크기 제한: 5 MB
+            "maxBytes": 1024 * 1024 * 5,  # 로그 ?�기 ?�한: 5 MB
             "backupCount": 5,
             "formatter": "standard",
         },
@@ -286,17 +287,17 @@ LOGGING = {
         },
     },
     "loggers": {
-        # Django 기본 로깅 설정
+        # Django 기본 로깅 ?�정
         "django": {
             "handlers": ["console", "file", "mail_admins"],
             "level": "INFO",
-            "propagate": True,  # 상위 로거로 전파
+            "propagate": True,  # ?�위 로거�??�파
         },
-        # Django 서버 로깅
+        # Django ?�버 로깅
         "django.server": {
             "handlers": ["django.server"],
             "level": "INFO",
-            "propagate": False,  # 상위 로거로 전파 X
+            "propagate": False,  # ?�위 로거�??�파 X
         },
         # Django Request 로깅
         "django.request": {
@@ -304,7 +305,7 @@ LOGGING = {
             "level": "ERROR",
             "propagate": False,
         },
-        # 사용자 정의 로깅
+        # ?�용???�의 로깅
         "schedulo": {
             "handlers": ["console", "file"],
             "level": "DEBUG",

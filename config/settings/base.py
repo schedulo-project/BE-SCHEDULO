@@ -250,7 +250,8 @@ LOGGING = {
         },
     },
     "handlers": {
-        # 콘솔 ?�들??        "console": {
+        # 콘솔 ?�들??        
+        "console": {
             "level": "DEBUG",
             "filters": ["require_debug_true"],
             "class": "logging.StreamHandler",

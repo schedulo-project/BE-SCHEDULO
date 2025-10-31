@@ -112,6 +112,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:443",
     "http://127.0.0.1:5174",
     "https://www.schedulo.co.kr",
+    "http://175.106.98.19",
+    "https://175.106.98.19",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
